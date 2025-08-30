@@ -35,34 +35,22 @@ app.post('/webhook', async (req, res) => {
     return res.status(200).json({ token: data.token });
   }
 
-  // Extraer el teléfono del evento - puede estar en diferentes ubicaciones según el tipo de evento
-  let phone = null;
-
-  // Para eventos de loyalty que tienen datos del customer
-  if (data?.phone) {
-    phone = data.phone;
-  }
-  // Para otros tipos de eventos, podemos necesitar buscar en otros lugares
-  // Por ahora usamos el teléfono directo del data
-
-  if (!phone) {
-    console.error('Número de teléfono no encontrado en el evento');
-    return res.status(400).send('Número de teléfono no encontrado');
+  const passSerialNumber = data?.passSerialNumber;
+  if (!passSerialNumber) {
+    console.error('passSerialNumber no encontrado en el evento');
+    return res.status(400).send('passSerialNumber no encontrado');
   }
 
   try {
-    console.log(`Buscando usuario con teléfono: ${phone}`);
-    const userResponse = await axios.get(`https://app.chatgptbuilder.io/api/contacts/find_by_custom_field?field_id=phone&value=${encodeURIComponent(phone)}`, {
+    const userResponse = await axios.get(`https://app.chatgptbuilder.io/api/users/find_by_custom_field?field_id=941905&value=${passSerialNumber}`, {
       headers: {
         'accept': 'application/json',
         'X-ACCESS-TOKEN': '1872077.CwMkMqynAn4DL78vhHIBgcyzrcpYCA08Y8WnAYZ2pccBlo'
       }
     });
 
-    console.log(`Respuesta de búsqueda de usuario:`, JSON.stringify(userResponse.data, null, 2));
-
     if (userResponse.data.data.length === 0) {
-      console.error(`Usuario no encontrado con el teléfono: ${phone}`);
+      console.error('Usuario no encontrado con el passSerialNumber proporcionado');
       return res.status(404).send('Usuario no encontrado');
     }
 
