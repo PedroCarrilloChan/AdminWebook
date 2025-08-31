@@ -1,0 +1,12 @@
+
+# Archivos de configuración local
+.env
+
+# Dependencias de Node
+node_modules/
+
+# Directorio de código compilado
+dist/
+
+# Logs de PM2 y otros
+*.log
