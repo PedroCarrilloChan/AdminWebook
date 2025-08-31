@@ -4,7 +4,7 @@
   "description": "Plataforma para gestionar webhooks de forma dinámica.",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "node --watch --loader ts-node/esm --input-type=module src/server.ts",
+    "dev": "ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "start:prod": "NODE_ENV=production npm run build && npm start"
