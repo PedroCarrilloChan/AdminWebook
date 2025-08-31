@@ -8,7 +8,7 @@ import admin from 'firebase-admin';
 
 // --- VALIDACIÓN DE VARIABLES DE ENTORNO ---
 // Es una buena práctica asegurarse de que todas las variables necesarias están presentes al inicio.
-const requiredEnvVars = ['FIREBASE_SERVICE_ACCOUNT_BASE64', 'PORT'];
+const requiredEnvVars = ['FIREBASE_SERVICE_ACCOUNT_BASE64'];
 for (const varName of requiredEnvVars) {
     if (!process.env[varName]) {
         // En un entorno de producción, esto detendrá la aplicación si falta una clave,
