@@ -166,6 +166,33 @@ app.post('/admin/webhooks', async (req, res) => {
     }
 });
 
+// PUT: Actualizar una configuración de webhook existente
+app.put('/admin/webhooks/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updatedData = req.body;
+        
+        // Validación simple
+        if (!updatedData.businessName || !updatedData.secretKey || !updatedData.apiToken) {
+            return res.status(400).send("Faltan campos requeridos.");
+        }
+
+        const webhookDoc = webhooksCollection.doc(id);
+        const doc = await webhookDoc.get();
+        
+        if (!doc.exists) {
+            return res.status(404).send("Webhook no encontrado.");
+        }
+
+        await webhookDoc.update(updatedData);
+        res.status(200).json({ id, ...updatedData });
+
+    } catch (error) {
+        console.error("Error al actualizar webhook:", error);
+        res.status(500).send("Error al actualizar la configuración.");
+    }
+});
+
 // DELETE: Eliminar una configuración de webhook por su ID
 app.delete('/admin/webhooks/:id', async (req, res) => {
     try {

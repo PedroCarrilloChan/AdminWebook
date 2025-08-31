@@ -43,7 +43,7 @@
             <!-- Columna del Formulario -->
             <div class="md:col-span-1">
                 <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold mb-4">Nueva Conexión</h2>
+                    <h2 id="formTitle" class="text-xl font-semibold mb-4">Nueva Conexión</h2>
                     <form id="webhookForm" class="space-y-4">
                         <div>
                             <label for="businessName" class="block text-sm font-medium text-gray-700">Nombre del Negocio</label>
@@ -69,9 +69,14 @@
                              <input type="checkbox" id="isActive" checked class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
                              <label for="isActive" class="ml-2 block text-sm text-gray-900">Activo</label>
                         </div>
-                        <button type="submit" id="submitButton" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            Crear Webhook
-                        </button>
+                        <div class="flex space-x-2">
+                            <button type="submit" id="submitButton" class="flex-1 flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                Crear Webhook
+                            </button>
+                            <button type="button" id="cancelButton" class="hidden flex-1 flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                Cancelar
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -97,8 +102,12 @@
         const webhookForm = document.getElementById('webhookForm');
         const webhookList = document.getElementById('webhookList');
         const submitButton = document.getElementById('submitButton');
+        const cancelButton = document.getElementById('cancelButton');
+        const formTitle = document.getElementById('formTitle');
         const loadingMessage = document.getElementById('loadingMessage');
         const toast = document.getElementById('toast');
+
+        let editingWebhookId = null; // Variable para rastrear si estamos editando
 
         // --- FUNCIONES DE LA API ---
 
@@ -130,11 +139,35 @@
                 if (!response.ok) throw new Error('Error al crear el webhook.');
 
                 showToast('Webhook creado con éxito!');
-                webhookForm.reset();
+                resetForm();
                 loadWebhooks(); // Recargar la lista
             } catch (error) {
                 console.error(error);
                 showToast('Error al crear el webhook.', true);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Crear Webhook';
+            }
+        }
+
+        // Actualiza un webhook existente
+        async function updateWebhook(webhookId, webhookData) {
+            submitButton.disabled = true;
+            submitButton.textContent = 'Actualizando...';
+            try {
+                const response = await fetch(`${API_BASE_URL}/${webhookId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(webhookData)
+                });
+                if (!response.ok) throw new Error('Error al actualizar el webhook.');
+
+                showToast('Webhook actualizado con éxito!');
+                resetForm();
+                loadWebhooks(); // Recargar la lista
+            } catch (error) {
+                console.error(error);
+                showToast('Error al actualizar el webhook.', true);
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = 'Crear Webhook';
@@ -156,6 +189,48 @@
                 console.error(error);
                 showToast('Error al eliminar el webhook.', true);
             }
+        }
+
+        // Función para editar un webhook
+        async function editWebhook(webhookId) {
+            try {
+                // Obtener todos los webhooks y encontrar el que queremos editar
+                const response = await fetch(API_BASE_URL);
+                if (!response.ok) throw new Error('Error al obtener webhook.');
+                
+                const webhooks = await response.json();
+                const webhook = webhooks.find(w => w.id === webhookId);
+                
+                if (!webhook) {
+                    showToast('Webhook no encontrado.', true);
+                    return;
+                }
+
+                // Llenar el formulario con los datos existentes
+                document.getElementById('businessName').value = webhook.businessName;
+                document.getElementById('customFieldId').value = webhook.customFieldId;
+                document.getElementById('flowId').value = webhook.flowId;
+                document.getElementById('isActive').checked = webhook.isActive;
+
+                // Cambiar el modo del formulario a edición
+                editingWebhookId = webhookId;
+                formTitle.textContent = 'Editar Conexión';
+                submitButton.textContent = 'Actualizar Webhook';
+                cancelButton.classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                showToast('Error al cargar el webhook para editar.', true);
+            }
+        }
+
+        // Función para resetear el formulario
+        function resetForm() {
+            webhookForm.reset();
+            editingWebhookId = null;
+            formTitle.textContent = 'Nueva Conexión';
+            submitButton.textContent = 'Crear Webhook';
+            cancelButton.classList.add('hidden');
         }
 
         // --- FUNCIONES DE RENDERIZADO ---
@@ -195,7 +270,10 @@
                             <span class="px-2 py-1 text-xs font-medium rounded-full ${webhook.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
                                 ${webhook.isActive ? 'Activo' : 'Inactivo'}
                             </span>
-                             <button onclick="deleteWebhook('${webhook.id}')" class="text-red-500 hover:text-red-700 font-semibold text-sm">Eliminar</button>
+                             <div class="flex space-x-2">
+                                <button onclick="editWebhook('${webhook.id}')" class="text-blue-500 hover:text-blue-700 font-semibold text-sm">Editar</button>
+                                <button onclick="deleteWebhook('${webhook.id}')" class="text-red-500 hover:text-red-700 font-semibold text-sm">Eliminar</button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -229,11 +307,22 @@
                 flowId: document.getElementById('flowId').value,
                 isActive: document.getElementById('isActive').checked
             };
-            createWebhook(webhookData);
+            
+            if (editingWebhookId) {
+                updateWebhook(editingWebhookId, webhookData);
+            } else {
+                createWebhook(webhookData);
+            }
         });
 
-        // Hacemos que la función deleteWebhook sea accesible globalmente para los botones
+        // Event listener para el botón cancelar
+        cancelButton.addEventListener('click', () => {
+            resetForm();
+        });
+
+        // Hacemos las funciones accesibles globalmente para los botones
         window.deleteWebhook = deleteWebhook;
+        window.editWebhook = editWebhook;
 
         // Carga inicial de datos
         loadWebhooks();
