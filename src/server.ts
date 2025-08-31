@@ -33,9 +33,47 @@ const webhooksCollection = db.collection('webhooks');
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
-// Middleware para parsear el cuerpo crudo de la petición, necesario para la firma
-// Se aplica a la ruta específica del webhook.
-app.use('/api/v1/webhook', express.raw({ type: 'application/json' }));
+// Middleware para parsear el cuerpo crudo de la petición con verificación de firma
+app.use('/api/v1/webhook/:webhookId', express.raw({ 
+  type: 'application/json',
+  verify: async (req: any, res: any, buf: Buffer) => {
+    try {
+      // Obtener el webhookId de los parámetros
+      const webhookId = req.params.webhookId;
+      
+      // Obtener la configuración del webhook desde Firestore
+      const webhookDoc = await webhooksCollection.doc(webhookId).get();
+      if (!webhookDoc.exists) {
+        console.error(`Configuración no encontrada para el webhookId: ${webhookId}`);
+        return res.status(404).send('Configuración de Webhook no encontrada.');
+      }
+      
+      const config = webhookDoc.data()!;
+      
+      // Verificar la firma
+      const signature = req.headers['x-passslot-signature'] as string;
+      if (!signature) {
+        console.error('No signature provided');
+        return res.status(401).send('No signature provided');
+      }
+
+      const hmac = crypto.createHmac('sha1', config.secretKey);
+      hmac.update(buf);
+      const digest = `sha1=${hmac.digest('hex')}`;
+
+      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
+        console.error('Invalid signature for webhookId:', webhookId);
+        return res.status(403).send('Invalid signature');
+      }
+      
+      // Guardar la configuración en el request para usarla después
+      req.webhookConfig = config;
+    } catch (error) {
+      console.error('Error en verificación de firma:', error);
+      return res.status(500).send('Error en verificación');
+    }
+  }
+}));
 
 // Middleware para parsear JSON, se usará para las rutas de administración.
 app.use(express.json());
@@ -47,46 +85,25 @@ app.get('/', (req, res) => {
 
 
 // EL ENDPOINT GENÉRICO PARA RECIBIR TODOS LOS WEBHOOKS
-app.post('/api/v1/webhook/:webhookId', async (req, res) => {
+app.post('/api/v1/webhook/:webhookId', async (req: any, res) => {
   const { webhookId } = req.params;
+  const config = req.webhookConfig; // Ya verificada en el middleware
 
   try {
-    // 1. Obtener la configuración del webhook desde Firestore
-    const webhookDoc = await webhooksCollection.doc(webhookId).get();
-    if (!webhookDoc.exists) {
-      console.error(`Configuración no encontrada para el webhookId: ${webhookId}`);
-      return res.status(404).send('Configuración de Webhook no encontrada.');
-    }
-    const config = webhookDoc.data()!;
-
-    // 2. Verificar si el webhook está activo
+    // 1. Verificar si el webhook está activo
     if (!config.isActive) {
         console.log(`Intento de uso de webhook inactivo: ${webhookId}`);
         return res.status(403).send('Este webhook está inactivo.');
     }
 
-    // 3. Verificar la firma usando la SECRET_KEY de la configuración
-    const signature = req.headers['x-passslot-signature'] as string;
-    if (!signature) {
-      return res.status(401).send('No signature provided');
-    }
-
-    const hmac = crypto.createHmac('sha1', config.secretKey);
-    hmac.update(req.body); // Usamos el buffer crudo
-    const digest = `sha1=${hmac.digest('hex')}`;
-
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
-      console.error('Invalid signature for webhookId:', webhookId);
-      return res.status(403).send('Invalid signature');
-    }
-
-    // 4. Procesar el evento
+    // 2. Procesar el evento
     const eventData = JSON.parse(req.body.toString());
     const { type, data } = eventData;
     console.log(`Evento recibido para ${config.businessName}:`, JSON.stringify(eventData, null, 2));
 
     // Manejo de la verificación inicial del webhook
     if (type === 'webhook.verify') {
+      console.log('Manejando verificación del webhook con token:', data.token);
       return res.status(200).json({ token: data.token });
     }
 
@@ -95,7 +112,7 @@ app.post('/api/v1/webhook/:webhookId', async (req, res) => {
       return res.status(400).send('passSerialNumber no encontrado');
     }
 
-    // 5. Lógica de negocio: interactuar con la API externa
+    // 3. Lógica de negocio: interactuar con la API externa
     const userResponse = await axios.get(`https://app.chatgptbuilder.io/api/users/find_by_custom_field?field_id=${config.customFieldId}&value=${passSerialNumber}`, {
       headers: { 'accept': 'application/json', 'X-ACCESS-TOKEN': config.apiToken }
     });
