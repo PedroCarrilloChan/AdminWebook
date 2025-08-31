@@ -1,79 +1,242 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control de Webhooks</title>
+    <title>SmartWebhooks - Plataforma de Gestión</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: linear-gradient(135deg, #0c1a2e 0%, #1a2332 25%, #2a3441 50%, #1a2332 75%, #0c1a2e 100%);
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Efecto de estrellas animadas */
+        .stars {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle 3s infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        /* Efecto Glass */
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.4);
+        }
+
+        /* Gradientes personalizados */
+        .gradient-text {
+            background: linear-gradient(135deg, #60A5FA, #34D399, #3B82F6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
         .toast {
             visibility: hidden;
             min-width: 250px;
-            background-color: #333;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
             color: #fff;
             text-align: center;
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 16px;
             position: fixed;
-            z-index: 1;
+            z-index: 1000;
             left: 50%;
             transform: translateX(-50%);
             bottom: 30px;
             opacity: 0;
             transition: opacity 0.5s, visibility 0.5s, bottom 0.5s;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         .toast.show {
             visibility: visible;
             opacity: 1;
             bottom: 50px;
         }
+
+        /* Animaciones de hover */
+        .hover-lift {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .hover-lift:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 60px 0 rgba(31, 38, 135, 0.5);
+        }
+
+        /* Botones con efecto glass */
+        .btn-glass {
+            background: rgba(96, 165, 250, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-glass:hover {
+            background: rgba(96, 165, 250, 0.3);
+            border-color: rgba(96, 165, 250, 0.5);
+            box-shadow: 0 8px 32px rgba(96, 165, 250, 0.3);
+        }
+
+        .btn-success {
+            background: rgba(52, 211, 153, 0.2);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+        }
+        .btn-success:hover {
+            background: rgba(52, 211, 153, 0.3);
+            border-color: rgba(52, 211, 153, 0.5);
+            box-shadow: 0 8px 32px rgba(52, 211, 153, 0.3);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.5);
+            box-shadow: 0 8px 32px rgba(239, 68, 68, 0.3);
+        }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="text-white relative">
+    <!-- Estrellas animadas -->
+    <div class="stars" id="stars"></div>
 
-    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900">Plataforma de Webhooks</h1>
-            <p class="text-gray-600 mt-1">Crea y gestiona tus integraciones de webhook de forma centralizada.</p>
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl relative z-10">
+        <!-- Header con navegación estilo SmartPasses -->
+        <header class="mb-12">
+            <nav class="flex justify-between items-center mb-8 glass rounded-2xl p-4">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-green-400 rounded-lg flex items-center justify-center">
+                        <span class="text-white font-bold text-sm">SW</span>
+                    </div>
+                    <h1 class="text-xl font-bold">Smart<span class="gradient-text">Webhooks</span></h1>
+                </div>
+                <div class="hidden md:flex space-x-6 text-sm">
+                    <a href="#" class="text-gray-300 hover:text-white transition-colors">Servicios</a>
+                    <a href="#" class="text-gray-300 hover:text-white transition-colors">Pricing</a>
+                    <a href="#" class="text-gray-300 hover:text-white transition-colors">Acerca</a>
+                    <a href="#" class="text-gray-300 hover:text-white transition-colors">Contacto</a>
+                </div>
+                <button class="btn-glass text-white px-4 py-2 rounded-lg text-sm font-medium">
+                    Panel Admin
+                </button>
+            </nav>
+            
+            <!-- Hero Section -->
+            <div class="text-center">
+                <h1 class="text-5xl md:text-6xl font-bold mb-6 leading-tight">
+                    El futuro de <span class="gradient-text">Webhook Management</span> está en tu bolsillo 🚀
+                </h1>
+                <p class="text-xl text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
+                    Crea, distribuye y gestiona webhooks dinámicos para Apple Wallet y Google Wallet. 
+                    Conecta con tus clientes de forma directa, personal y moderna.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button class="btn-success text-white px-8 py-3 rounded-xl font-semibold">
+                        Comenzar Gratis
+                    </button>
+                    <button class="btn-glass text-white px-8 py-3 rounded-xl font-semibold">
+                        Ver Demo
+                    </button>
+                </div>
+            </div>
         </header>
 
-        <main class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Stats Section -->
+        <section class="mb-16">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold mb-4">Resultados que hablan por sí mismos</h2>
+                <p class="text-gray-300">Nuestra estrategia se traduce en crecimiento real para tu negocio.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="glass-card rounded-2xl p-8 text-center hover-lift">
+                    <div class="text-5xl font-bold text-green-400 mb-2">90%</div>
+                    <div class="text-lg font-semibold mb-2">Customer Retention</div>
+                    <div class="text-gray-400 text-sm">Lasting loyalty.</div>
+                </div>
+                <div class="glass-card rounded-2xl p-8 text-center hover-lift">
+                    <div class="text-5xl font-bold text-blue-400 mb-2">↗50%</div>
+                    <div class="text-lg font-semibold mb-2">Sales Increase</div>
+                    <div class="text-gray-400 text-sm">Direct impact on revenue.</div>
+                </div>
+                <div class="glass-card rounded-2xl p-8 text-center hover-lift">
+                    <div class="text-5xl font-bold text-yellow-400 mb-2">74%</div>
+                    <div class="text-lg font-semibold mb-2">Relevant Interaction</div>
+                    <div class="text-gray-400 text-sm">Connection with your audience.</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard -->
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <!-- Columna del Formulario -->
-            <div class="md:col-span-1">
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 id="formTitle" class="text-xl font-semibold mb-4">Nueva Conexión</h2>
-                    <form id="webhookForm" class="space-y-4">
+            <div class="lg:col-span-1">
+                <div class="glass-card rounded-2xl p-6 hover-lift">
+                    <h2 id="formTitle" class="text-2xl font-bold mb-6 gradient-text">Nueva Conexión</h2>
+                    <form id="webhookForm" class="space-y-5">
                         <div>
-                            <label for="businessName" class="block text-sm font-medium text-gray-700">Nombre del Negocio</label>
-                            <input type="text" id="businessName" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                        </div>
-                        <div>
-                            <label for="secretKey" class="block text-sm font-medium text-gray-700">Secret Key</label>
-                            <input type="text" id="secretKey" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            <label for="businessName" class="block text-sm font-medium text-gray-300 mb-2">Nombre del Negocio</label>
+                            <input type="text" id="businessName" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent backdrop-blur-sm transition-all">
                         </div>
                         <div>
-                            <label for="apiToken" class="block text-sm font-medium text-gray-700">API Token (ChatbotBuilder)</label>
-                            <input type="text" id="apiToken" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            <label for="secretKey" class="block text-sm font-medium text-gray-300 mb-2">Secret Key</label>
+                            <input type="password" id="secretKey" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent backdrop-blur-sm transition-all">
                         </div>
                         <div>
-                            <label for="customFieldId" class="block text-sm font-medium text-gray-700">ID Campo Personalizado (CUF)</label>
-                            <input type="number" id="customFieldId" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            <label for="apiToken" class="block text-sm font-medium text-gray-300 mb-2">API Token (ChatbotBuilder)</label>
+                            <input type="password" id="apiToken" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent backdrop-blur-sm transition-all">
                         </div>
                         <div>
-                            <label for="flowId" class="block text-sm font-medium text-gray-700">ID del Flujo</label>
-                            <input type="number" id="flowId" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            <label for="customFieldId" class="block text-sm font-medium text-gray-300 mb-2">ID Campo Personalizado (CUF)</label>
+                            <input type="number" id="customFieldId" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent backdrop-blur-sm transition-all">
                         </div>
-                        <div class="flex items-center">
-                             <input type="checkbox" id="isActive" checked class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                             <label for="isActive" class="ml-2 block text-sm text-gray-900">Activo</label>
+                        <div>
+                            <label for="flowId" class="block text-sm font-medium text-gray-300 mb-2">ID del Flujo</label>
+                            <input type="number" id="flowId" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent backdrop-blur-sm transition-all">
                         </div>
-                        <div class="flex space-x-2">
-                            <button type="submit" id="submitButton" class="flex-1 flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <div class="flex items-center space-x-3">
+                             <input type="checkbox" id="isActive" checked class="h-5 w-5 text-blue-400 bg-white/10 border-white/20 rounded focus:ring-blue-400 focus:ring-2">
+                             <label for="isActive" class="text-sm text-gray-300">Webhook Activo</label>
+                        </div>
+                        <div class="flex space-x-3 pt-4">
+                            <button type="submit" id="submitButton" class="flex-1 btn-success text-white py-3 px-6 rounded-xl font-semibold transition-all">
                                 Crear Webhook
                             </button>
-                            <button type="button" id="cancelButton" class="hidden flex-1 flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <button type="button" id="cancelButton" class="hidden flex-1 btn-glass text-white py-3 px-6 rounded-xl font-semibold transition-all">
                                 Cancelar
                             </button>
                         </div>
@@ -82,12 +245,21 @@
             </div>
 
             <!-- Columna de la Lista -->
-            <div class="md:col-span-2">
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold mb-4">Webhooks Activos</h2>
+            <div class="lg:col-span-2">
+                <div class="glass-card rounded-2xl p-6 hover-lift">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold gradient-text">Webhooks Activos</h2>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                            <span class="text-sm text-gray-300">Sistema Online</span>
+                        </div>
+                    </div>
                     <div id="webhookList" class="space-y-4">
                         <!-- Las conexiones se insertarán aquí dinámicamente -->
-                        <p id="loadingMessage" class="text-gray-500">Cargando webhooks...</p>
+                        <div id="loadingMessage" class="text-center py-8">
+                            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+                            <p class="text-gray-400 mt-3">Cargando webhooks...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -98,7 +270,22 @@
     <div id="toast" class="toast"></div>
 
 <script>
+    // Generar estrellas animadas
+    function createStars() {
+        const starsContainer = document.getElementById('stars');
+        for (let i = 0; i < 100; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.left = Math.random() * 100 + '%';
+            star.style.top = Math.random() * 100 + '%';
+            star.style.animationDelay = Math.random() * 3 + 's';
+            starsContainer.appendChild(star);
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+        createStars();
+        
         const webhookForm = document.getElementById('webhookForm');
         const webhookList = document.getElementById('webhookList');
         const submitButton = document.getElementById('submitButton');
@@ -122,14 +309,14 @@
                 renderWebhooks(webhooks);
             } catch (error) {
                 console.error(error);
-                webhookList.innerHTML = `<p class="text-red-500">No se pudieron cargar las configuraciones.</p>`;
+                webhookList.innerHTML = `<div class="text-center py-8"><p class="text-red-400">No se pudieron cargar las configuraciones.</p></div>`;
             }
         }
 
         // Crea un nuevo webhook
         async function createWebhook(webhookData) {
             submitButton.disabled = true;
-            submitButton.textContent = 'Creando...';
+            submitButton.innerHTML = '<div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Creando...';
             try {
                 const response = await fetch(API_BASE_URL, {
                     method: 'POST',
@@ -138,12 +325,12 @@
                 });
                 if (!response.ok) throw new Error('Error al crear el webhook.');
 
-                showToast('Webhook creado con éxito!');
+                showToast('🎉 Webhook creado con éxito!');
                 resetForm();
                 loadWebhooks(); // Recargar la lista
             } catch (error) {
                 console.error(error);
-                showToast('Error al crear el webhook.', true);
+                showToast('❌ Error al crear el webhook.', true);
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = 'Crear Webhook';
@@ -153,7 +340,7 @@
         // Actualiza un webhook existente
         async function updateWebhook(webhookId, webhookData) {
             submitButton.disabled = true;
-            submitButton.textContent = 'Actualizando...';
+            submitButton.innerHTML = '<div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Actualizando...';
             try {
                 const response = await fetch(`${API_BASE_URL}/${webhookId}`, {
                     method: 'PUT',
@@ -162,12 +349,12 @@
                 });
                 if (!response.ok) throw new Error('Error al actualizar el webhook.');
 
-                showToast('Webhook actualizado con éxito!');
+                showToast('✅ Webhook actualizado con éxito!');
                 resetForm();
                 loadWebhooks(); // Recargar la lista
             } catch (error) {
                 console.error(error);
-                showToast('Error al actualizar el webhook.', true);
+                showToast('❌ Error al actualizar el webhook.', true);
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = 'Crear Webhook';
@@ -183,11 +370,11 @@
                 });
                 if (!response.ok) throw new Error('Error al eliminar el webhook.');
 
-                showToast('Webhook eliminado correctamente.');
+                showToast('🗑️ Webhook eliminado correctamente.');
                 loadWebhooks(); // Recargar la lista
             } catch (error) {
                 console.error(error);
-                showToast('Error al eliminar el webhook.', true);
+                showToast('❌ Error al eliminar el webhook.', true);
             }
         }
 
@@ -202,7 +389,7 @@
                 const webhook = webhooks.find(w => w.id === webhookId);
                 
                 if (!webhook) {
-                    showToast('Webhook no encontrado.', true);
+                    showToast('❌ Webhook no encontrado.', true);
                     return;
                 }
 
@@ -214,13 +401,14 @@
 
                 // Cambiar el modo del formulario a edición
                 editingWebhookId = webhookId;
-                formTitle.textContent = 'Editar Conexión';
+                formTitle.innerHTML = '✏️ Editar Conexión';
                 submitButton.textContent = 'Actualizar Webhook';
+                submitButton.className = 'flex-1 btn-glass text-white py-3 px-6 rounded-xl font-semibold transition-all';
                 cancelButton.classList.remove('hidden');
 
             } catch (error) {
                 console.error(error);
-                showToast('Error al cargar el webhook para editar.', true);
+                showToast('❌ Error al cargar el webhook para editar.', true);
             }
         }
 
@@ -228,8 +416,9 @@
         function resetForm() {
             webhookForm.reset();
             editingWebhookId = null;
-            formTitle.textContent = 'Nueva Conexión';
+            formTitle.innerHTML = '✨ Nueva Conexión';
             submitButton.textContent = 'Crear Webhook';
+            submitButton.className = 'flex-1 btn-success text-white py-3 px-6 rounded-xl font-semibold transition-all';
             cancelButton.classList.add('hidden');
         }
 
@@ -238,7 +427,7 @@
         // Muestra y oculta el toast de notificación
         function showToast(message, isError = false) {
             toast.textContent = message;
-            toast.className = `toast show ${isError ? 'bg-red-600' : 'bg-gray-800'}`;
+            toast.className = `toast show ${isError ? 'bg-red-600/80' : 'bg-gray-800/80'}`;
             setTimeout(() => {
                 toast.className = toast.className.replace("show", "");
             }, 3000);
@@ -248,31 +437,55 @@
         function renderWebhooks(webhooks) {
             webhookList.innerHTML = ''; // Limpiar la lista
             if (webhooks.length === 0) {
-                webhookList.innerHTML = '<p class="text-gray-500">No hay webhooks configurados todavía.</p>';
+                webhookList.innerHTML = `
+                    <div class="text-center py-12">
+                        <div class="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <span class="text-2xl">🔗</span>
+                        </div>
+                        <p class="text-gray-400">No hay webhooks configurados todavía.</p>
+                        <p class="text-gray-500 text-sm mt-2">Crea tu primera conexión para comenzar.</p>
+                    </div>
+                `;
                 return;
             }
 
-            webhooks.forEach(webhook => {
+            webhooks.forEach((webhook, index) => {
                 const fullUrl = `${window.location.origin}/api/v1/webhook/${webhook.id}`;
                 const element = document.createElement('div');
-                element.className = 'p-4 border rounded-md bg-gray-50';
+                element.className = 'glass rounded-xl p-5 hover-lift transition-all duration-300';
                 element.innerHTML = `
                     <div class="flex justify-between items-start">
-                        <div>
-                            <h3 class="font-semibold text-lg">${webhook.businessName}</h3>
-                            <p class="text-sm text-gray-500">ID del Flujo: ${webhook.flowId}</p>
-                            <div class="mt-2 flex items-center">
-                                <input type="text" readonly value="${fullUrl}" class="w-full text-sm p-1 border rounded-l-md bg-gray-200 text-gray-600">
-                                <button onclick="copyToClipboard('${fullUrl}', this)" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm p-1 border-l-0 border rounded-r-md">Copiar</button>
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-3 mb-3">
+                                <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-green-400 rounded-lg flex items-center justify-center">
+                                    <span class="text-white font-bold text-sm">${webhook.businessName.charAt(0).toUpperCase()}</span>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-lg text-white">${webhook.businessName}</h3>
+                                    <p class="text-sm text-gray-400">Flujo ID: ${webhook.flowId}</p>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <label class="block text-xs text-gray-400 mb-1">Webhook URL:</label>
+                                <div class="flex items-center">
+                                    <input type="text" readonly value="${fullUrl}" class="flex-1 text-xs p-2 bg-white/5 border border-white/10 rounded-l-lg text-gray-300 font-mono">
+                                    <button onclick="copyToClipboard('${fullUrl}', this)" class="bg-white/10 hover:bg-white/20 text-gray-300 text-xs p-2 border border-l-0 border-white/10 rounded-r-lg transition-all">
+                                        📋
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <div class="flex flex-col items-end space-y-2">
-                            <span class="px-2 py-1 text-xs font-medium rounded-full ${webhook.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-                                ${webhook.isActive ? 'Activo' : 'Inactivo'}
+                        <div class="flex flex-col items-end space-y-3 ml-4">
+                            <span class="px-3 py-1 text-xs font-semibold rounded-full ${webhook.isActive ? 'bg-green-400/20 text-green-300 border border-green-400/30' : 'bg-red-400/20 text-red-300 border border-red-400/30'}">
+                                ${webhook.isActive ? '🟢 Activo' : '🔴 Inactivo'}
                             </span>
                              <div class="flex space-x-2">
-                                <button onclick="editWebhook('${webhook.id}')" class="text-blue-500 hover:text-blue-700 font-semibold text-sm">Editar</button>
-                                <button onclick="deleteWebhook('${webhook.id}')" class="text-red-500 hover:text-red-700 font-semibold text-sm">Eliminar</button>
+                                <button onclick="editWebhook('${webhook.id}')" class="btn-glass text-blue-300 hover:text-white px-3 py-1 rounded-lg text-sm font-medium transition-all">
+                                    ✏️ Editar
+                                </button>
+                                <button onclick="deleteWebhook('${webhook.id}')" class="btn-danger text-red-300 hover:text-white px-3 py-1 rounded-lg text-sm font-medium transition-all">
+                                    🗑️
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -284,14 +497,16 @@
         // Función para copiar al portapapeles
         window.copyToClipboard = (text, button) => {
             navigator.clipboard.writeText(text).then(() => {
-                const originalText = button.textContent;
-                button.textContent = '¡Copiado!';
+                const originalText = button.innerHTML;
+                button.innerHTML = '✅';
+                button.classList.add('bg-green-400/20', 'text-green-300');
                 setTimeout(() => {
-                    button.textContent = originalText;
+                    button.innerHTML = originalText;
+                    button.classList.remove('bg-green-400/20', 'text-green-300');
                 }, 2000);
             }).catch(err => {
                 console.error('Error al copiar:', err);
-                showToast('No se pudo copiar la URL.', true);
+                showToast('❌ No se pudo copiar la URL.', true);
             });
         }
 
@@ -331,4 +546,3 @@
 
 </body>
 </html>
-
