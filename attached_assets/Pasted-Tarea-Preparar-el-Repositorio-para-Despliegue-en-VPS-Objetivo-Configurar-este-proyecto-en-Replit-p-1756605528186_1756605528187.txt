@@ -1,0 +1,57 @@
+Tarea: Preparar el Repositorio para Despliegue en VPS
+Objetivo: Configurar este proyecto en Replit para asegurar un despliegue limpio y sin errores desde un repositorio de Git a un servidor VPS de producción.
+
+Por favor, realiza las siguientes acciones:
+
+1. Crear un Archivo .gitignore
+Es crucial que no subamos al repositorio archivos innecesarios o sensibles. Por favor, crea un archivo .gitignore en la raíz del proyecto con el siguiente contenido exacto:
+
+# Archivos de configuración local
+.env
+
+# Dependencias de Node
+node_modules/
+
+# Directorio de código compilado
+dist/
+
+# Logs de PM2 y otros
+*.log
+
+2. Crear un Archivo de Ejemplo para Variables de Entorno
+Para facilitar la configuración en el servidor VPS, crea un archivo llamado .env.example. Este archivo servirá como plantilla para el .env de producción. Debe contener lo siguiente:
+
+# --- Configuración del Entorno ---
+# Usa 'production' en el VPS
+NODE_ENV=production
+
+# Puerto en el que correrá la aplicación en el servidor
+PORT=3000
+
+# --- Credenciales de Firebase ---
+# Aquí se debe pegar la clave de servicio en formato Base64
+FIREBASE_SERVICE_ACCOUNT_BASE64="PEGA_AQUI_LA_CLAVE_BASE64"
+
+3. Verificar los Scripts de package.json
+Asegúrate de que los scripts build y start en package.json estén correctos y listos para producción. Deben ser los siguientes:
+
+"build": "tsc": Compila el código TypeScript a JavaScript en la carpeta dist/.
+
+"start": "node dist/server.js": Ejecuta el servidor desde el código ya compilado.
+
+Estos scripts son fundamentales para el gestor de procesos PM2 en el VPS.
+
+4. Resumen de Verificación Final
+Confirma que los siguientes archivos de configuración están presentes y correctamente configurados en el proyecto antes de subirlo a Git:
+
+package.json
+
+tsconfig.json
+
+.replit
+
+.gitignore (creado en el paso 1)
+
+.env.example (creado en el paso 2)
+
+Una vez completadas estas tareas, el proyecto estará perfectamente preparado para ser subido a Git y desplegado en el servidor VPS siguiendo la guía DEPLOYMENT.md.
