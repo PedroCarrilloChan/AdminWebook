@@ -1,0 +1,62 @@
+Plataforma de Gestión Dinámica de Webhooks
+1. Objetivo del Proyecto
+Este proyecto es una plataforma web diseñada para crear y gestionar "receptores" de webhooks de forma dinámica. El objetivo principal es eliminar la necesidad de escribir, configurar y desplegar código manualmente para cada nuevo cliente o negocio que necesite una integración de webhook.
+
+La plataforma permitirá a un administrador configurar una nueva integración a través de una interfaz de usuario, y el sistema generará automáticamente una URL de webhook única y lista para usar.
+
+2. Arquitectura y Tecnologías
+El proyecto sigue una arquitectura cliente-servidor y utiliza el siguiente stack tecnológico:
+
+Backend: Node.js con Express, escrito en TypeScript (src/server.ts).
+
+Frontend: HTML, CSS (TailwindCSS) y JavaScript vainilla (index.html).
+
+Base de Datos: Google Firestore para almacenar las configuraciones de cada webhook.
+
+Gestión de Entorno: Variables de entorno (.env y "Secrets" de Replit) para manejar claves de API y configuraciones sensibles de forma segura.
+
+3. Flujo de Funcionamiento
+El flujo lógico de la aplicación es el siguiente:
+
+Configuración (Admin): Un administrador utiliza el frontend (index.html) para rellenar un formulario con los datos de una nueva conexión:
+
+Nombre del negocio.
+
+secretKey (para la verificación de la firma del webhook).
+
+apiToken (para la API de destino, ej. ChatbotBuilder).
+
+customFieldId (ID del campo a buscar).
+
+flowId (ID del flujo a activar).
+
+Generación: El backend recibe esta información, la guarda como un nuevo documento en la colección webhooks de Firestore y le asigna un ID único (webhookId). La plataforma devuelve al administrador una URL única con este formato: https://[dominio]/api/v1/webhook/[webhookId].
+
+Recepción del Evento: El servicio externo del cliente (ej. PassSlot) envía una notificación (evento) a la URL generada.
+
+Procesamiento Dinámico: Nuestro endpoint genérico (/api/v1/webhook/:webhookId) se activa:
+
+Extrae el webhookId de la URL.
+
+Usa ese ID para buscar y cargar la configuración correspondiente desde Firestore.
+
+Utiliza la secretKey almacenada en esa configuración para verificar la firma de la petición y asegurar su autenticidad.
+
+Con el resto de los datos de la configuración (apiToken, customFieldId, flowId), ejecuta la lógica de negocio: buscar al usuario y activar el flujo en la API de ChatbotBuilder.
+
+4. Estado Actual y Próximos Pasos
+Completado:
+
+La estructura del proyecto está configurada y sigue las mejores prácticas (variables de entorno, scripts de npm, TypeScript).
+
+El endpoint genérico (/api/v1/webhook/:webhookId) que procesa los webhooks de forma dinámica está implementado y funcionando.
+
+La conexión con Firebase/Firestore está establecida.
+
+El frontend (index.html) para la gestión visual está creado, aunque su lógica de guardado y carga de datos es actualmente simulada.
+
+Próximos Pasos:
+
+Implementar los endpoints de administración (API CRUD) en src/server.ts. Necesitamos rutas como POST /admin/webhooks, GET /admin/webhooks, y DELETE /admin/webhooks/:id.
+
+Conectar el frontend (index.html) a esta nueva API CRUD para que pueda crear, leer y eliminar configuraciones de webhooks en la base de datos de Firestore de forma real.
