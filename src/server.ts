@@ -31,7 +31,7 @@ const webhooksCollection = db.collection('webhooks');
 // ---------------------------------------------
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // Middleware para parsear el cuerpo crudo de la petición, necesario para la firma
 // Se aplica a la ruta específica del webhook.
@@ -183,7 +183,7 @@ app.delete('/admin/webhooks/:id', async (req, res) => {
 });
 
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en el puerto ${PORT} en modo ${process.env.NODE_ENV || 'development'}`);
 });
 
