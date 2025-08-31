@@ -3,177 +3,243 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestor de Webhooks</title>
+    <title>Panel de Control de Webhooks</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .input-group { margin-bottom: 1rem; }
-        .input-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
-        .input-group input { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #D1D5DB; transition: border-color 0.2s, box-shadow 0.2s; }
-        .input-group input:focus { border-color: #3B82F6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4); outline: none; }
-        .generated-url { background-color: #F3F4F6; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem; word-break: break-all; border: 1px solid #E5E7EB; }
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 30px;
+            opacity: 0;
+            transition: opacity 0.5s, visibility 0.5s, bottom 0.5s;
+        }
+        .toast.show {
+            visibility: visible;
+            opacity: 1;
+            bottom: 50px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
 
-    <div class="container mx-auto p-4 sm:p-8 max-w-4xl">
-        <h1 class="text-3xl font-bold mb-6 text-gray-900">Gestor de Conexiones de Webhooks</h1>
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">Plataforma de Webhooks</h1>
+            <p class="text-gray-600 mt-1">Crea y gestiona tus integraciones de webhook de forma centralizada.</p>
+        </header>
 
-        <!-- Formulario para crear un nuevo Webhook -->
-        <div class="bg-white p-6 sm:p-8 rounded-lg shadow-md mb-8">
-            <h2 class="text-2xl font-semibold mb-4">Nueva Conexión</h2>
-            <form id="webhook-form">
-                <div class="grid md:grid-cols-2 gap-6">
-                    <div class="input-group">
-                        <label for="businessName">Nombre del Negocio</label>
-                        <input type="text" id="businessName" placeholder="Ej: Tienda de Ropa XYZ" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="secretKey">Secret Key (para verificar firma)</label>
-                        <input type="password" id="secretKey" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="apiToken">API Token (ChatbotBuilder)</label>
-                        <input type="password" id="apiToken" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="customFieldId">ID del Campo Personalizado (CUF)</label>
-                        <input type="text" id="customFieldId" placeholder="Ej: 304850" required>
-                    </div>
-                    <div class="input-group md:col-span-2">
-                        <label for="flowId">ID del Flujo a Enviar</label>
-                        <input type="text" id="flowId" placeholder="Ej: 1756589899074" required>
+        <main class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Columna del Formulario -->
+            <div class="md:col-span-1">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4">Nueva Conexión</h2>
+                    <form id="webhookForm" class="space-y-4">
+                        <div>
+                            <label for="businessName" class="block text-sm font-medium text-gray-700">Nombre del Negocio</label>
+                            <input type="text" id="businessName" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="secretKey" class="block text-sm font-medium text-gray-700">Secret Key</label>
+                            <input type="text" id="secretKey" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="apiToken" class="block text-sm font-medium text-gray-700">API Token (ChatbotBuilder)</label>
+                            <input type="text" id="apiToken" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="customFieldId" class="block text-sm font-medium text-gray-700">ID Campo Personalizado (CUF)</label>
+                            <input type="number" id="customFieldId" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="flowId" class="block text-sm font-medium text-gray-700">ID del Flujo</label>
+                            <input type="number" id="flowId" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div class="flex items-center">
+                             <input type="checkbox" id="isActive" checked class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                             <label for="isActive" class="ml-2 block text-sm text-gray-900">Activo</label>
+                        </div>
+                        <button type="submit" id="submitButton" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Crear Webhook
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Columna de la Lista -->
+            <div class="md:col-span-2">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4">Webhooks Activos</h2>
+                    <div id="webhookList" class="space-y-4">
+                        <!-- Las conexiones se insertarán aquí dinámicamente -->
+                        <p id="loadingMessage" class="text-gray-500">Cargando webhooks...</p>
                     </div>
                 </div>
-                <button type="submit" class="mt-4 w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300">
-                    Crear Conexión y Generar URL
-                </button>
-            </form>
-        </div>
-
-        <!-- Lista de Webhooks existentes -->
-        <div class="bg-white p-6 sm:p-8 rounded-lg shadow-md">
-            <h2 class="text-2xl font-semibold mb-4">Conexiones Activas</h2>
-            <div id="webhooks-list" class="space-y-4">
-                <!-- Las conexiones se insertarán aquí dinámicamente -->
-                <p class="text-gray-500">Aún no hay conexiones. ¡Crea una!</p>
             </div>
-        </div>
+        </main>
     </div>
 
-    <script>
-        const form = document.getElementById('webhook-form');
-        const webhooksList = document.getElementById('webhooks-list');
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
 
-        // La URL base se determina dinámicamente. Esto funciona si el frontend y el backend
-        // se sirven desde el mismo dominio, como en Replit.
-        const API_BASE_URL = window.location.origin; 
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const webhookForm = document.getElementById('webhookForm');
+        const webhookList = document.getElementById('webhookList');
+        const submitButton = document.getElementById('submitButton');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const toast = document.getElementById('toast');
 
-        // --- SIMULACIÓN DE BACKEND ---
-        // En un futuro, reemplazaremos estas funciones con llamadas reales a la API.
+        // --- FUNCIONES DE LA API ---
 
-        let simulatedDatabase = [];
+        const API_BASE_URL = '/admin/webhooks';
 
-        async function createWebhookConfig(config) {
-            console.log("Enviando al backend (simulado):", config);
-            const fakeId = 'whook_' + Math.random().toString(36).substring(2, 9);
-            const newWebhook = { id: fakeId, ...config };
-            simulatedDatabase.push(newWebhook);
-            return Promise.resolve(newWebhook);
-        }
-
+        // Carga los webhooks desde el backend
         async function loadWebhooks() {
-            console.log("Cargando webhooks desde la base de datos (simulada)");
-            // En el futuro:
-            // const response = await fetch(`${API_BASE_URL}/admin/webhooks`);
-            // const webhooks = await response.json();
-            // displayWebhooks(webhooks);
-            displayWebhooks(simulatedDatabase);
+            try {
+                const response = await fetch(API_BASE_URL);
+                if (!response.ok) throw new Error('Error al cargar los datos.');
+                const webhooks = await response.json();
+                renderWebhooks(webhooks);
+            } catch (error) {
+                console.error(error);
+                webhookList.innerHTML = `<p class="text-red-500">No se pudieron cargar las configuraciones.</p>`;
+            }
         }
 
-        // --- LÓGICA DE LA INTERFAZ ---
+        // Crea un nuevo webhook
+        async function createWebhook(webhookData) {
+            submitButton.disabled = true;
+            submitButton.textContent = 'Creando...';
+            try {
+                const response = await fetch(API_BASE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(webhookData)
+                });
+                if (!response.ok) throw new Error('Error al crear el webhook.');
 
-        function displayWebhooks(webhooks) {
-            webhooksList.innerHTML = '';
+                showToast('Webhook creado con éxito!');
+                webhookForm.reset();
+                loadWebhooks(); // Recargar la lista
+            } catch (error) {
+                console.error(error);
+                showToast('Error al crear el webhook.', true);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Crear Webhook';
+            }
+        }
+
+        // Elimina un webhook
+        async function deleteWebhook(webhookId) {
+            if (!confirm('¿Estás seguro de que quieres eliminar este webhook?')) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/${webhookId}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) throw new Error('Error al eliminar el webhook.');
+
+                showToast('Webhook eliminado correctamente.');
+                loadWebhooks(); // Recargar la lista
+            } catch (error) {
+                console.error(error);
+                showToast('Error al eliminar el webhook.', true);
+            }
+        }
+
+        // --- FUNCIONES DE RENDERIZADO ---
+
+        // Muestra y oculta el toast de notificación
+        function showToast(message, isError = false) {
+            toast.textContent = message;
+            toast.className = `toast show ${isError ? 'bg-red-600' : 'bg-gray-800'}`;
+            setTimeout(() => {
+                toast.className = toast.className.replace("show", "");
+            }, 3000);
+        }
+
+        // Dibuja la lista de webhooks en el DOM
+        function renderWebhooks(webhooks) {
+            webhookList.innerHTML = ''; // Limpiar la lista
             if (webhooks.length === 0) {
-                webhooksList.innerHTML = '<p class="text-gray-500">Aún no hay conexiones. ¡Crea una!</p>';
+                webhookList.innerHTML = '<p class="text-gray-500">No hay webhooks configurados todavía.</p>';
                 return;
             }
 
-            webhooks.forEach(wh => {
-                const webhookElement = document.createElement('div');
-                webhookElement.className = 'border p-4 rounded-lg shadow-sm bg-white';
-                webhookElement.setAttribute('data-id', wh.id);
-
-                const generatedUrl = `${API_BASE_URL}/api/v1/webhook/${wh.id}`;
-
-                webhookElement.innerHTML = `
+            webhooks.forEach(webhook => {
+                const fullUrl = `${window.location.origin}/api/v1/webhook/${webhook.id}`;
+                const element = document.createElement('div');
+                element.className = 'p-4 border rounded-md bg-gray-50';
+                element.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div>
-                            <h3 class="font-bold text-lg">${wh.businessName}</h3>
-                            <p class="text-sm text-gray-600">ID: ${wh.id}</p>
+                            <h3 class="font-semibold text-lg">${webhook.businessName}</h3>
+                            <p class="text-sm text-gray-500">ID del Flujo: ${webhook.flowId}</p>
+                            <div class="mt-2 flex items-center">
+                                <input type="text" readonly value="${fullUrl}" class="w-full text-sm p-1 border rounded-l-md bg-gray-200 text-gray-600">
+                                <button onclick="copyToClipboard('${fullUrl}', this)" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm p-1 border-l-0 border rounded-r-md">Copiar</button>
+                            </div>
                         </div>
-                         <button onclick="deleteWebhook('${wh.id}')" class="text-xs bg-red-100 text-red-700 font-semibold py-1 px-3 rounded-full hover:bg-red-200">Eliminar</button>
+                        <div class="flex flex-col items-end space-y-2">
+                            <span class="px-2 py-1 text-xs font-medium rounded-full ${webhook.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                ${webhook.isActive ? 'Activo' : 'Inactivo'}
+                            </span>
+                             <button onclick="deleteWebhook('${webhook.id}')" class="text-red-500 hover:text-red-700 font-semibold text-sm">Eliminar</button>
+                        </div>
                     </div>
-                    <div class="generated-url mt-3">
-                        <p class="font-mono text-sm">${generatedUrl}</p>
-                    </div>
-                    <button onclick="copyToClipboard('${generatedUrl}')" class="mt-2 bg-gray-200 text-sm font-semibold py-1 px-3 rounded-md hover:bg-gray-300">Copiar URL</button>
                 `;
-                webhooksList.appendChild(webhookElement);
+                webhookList.appendChild(element);
             });
         }
 
-        function deleteWebhook(id) {
-            // Lógica para eliminar el webhook (simulada)
-            console.log(`Eliminando webhook con ID: ${id}`);
-            simulatedDatabase = simulatedDatabase.filter(wh => wh.id !== id);
-            // Vuelve a dibujar la lista
-            displayWebhooks(simulatedDatabase);
+        // Función para copiar al portapapeles
+        window.copyToClipboard = (text, button) => {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = '¡Copiado!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Error al copiar:', err);
+                showToast('No se pudo copiar la URL.', true);
+            });
         }
 
-        function copyToClipboard(text) {
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                alert('¡URL copiada al portapapeles!');
-            } catch (err) {
-                alert('No se pudo copiar la URL.');
-            }
-            document.body.removeChild(textarea);
-        }
+        // --- EVENT LISTENERS ---
 
-        form.addEventListener('submit', async (e) => {
+        webhookForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            const newConfig = {
+            const webhookData = {
                 businessName: document.getElementById('businessName').value,
                 secretKey: document.getElementById('secretKey').value,
                 apiToken: document.getElementById('apiToken').value,
                 customFieldId: document.getElementById('customFieldId').value,
                 flowId: document.getElementById('flowId').value,
-                isActive: true
+                isActive: document.getElementById('isActive').checked
             };
-
-            try {
-                await createWebhookConfig(newConfig);
-                // Vuelve a cargar y mostrar todos los webhooks
-                await loadWebhooks(); 
-                form.reset();
-            } catch (error) {
-                console.error("Error al crear la conexión:", error);
-                alert("Hubo un error al crear la conexión. Revisa la consola.");
-            }
+            createWebhook(webhookData);
         });
 
-        // Cargar los webhooks cuando la página esté lista
-        document.addEventListener('DOMContentLoaded', loadWebhooks);
-    </script>
+        // Hacemos que la función deleteWebhook sea accesible globalmente para los botones
+        window.deleteWebhook = deleteWebhook;
+
+        // Carga inicial de datos
+        loadWebhooks();
+    });
+</script>
+
 </body>
 </html>
 

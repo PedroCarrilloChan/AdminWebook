@@ -1,76 +1,189 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const crypto = require('crypto');
-const axios = require('axios');
+// La primera línea, como indicamos, для cargar las variables de entorno.
+import 'dotenv/config'; 
+
+import express from 'express';
+import crypto from 'crypto';
+import axios from 'axios';
+import admin from 'firebase-admin';
+
+// --- VALIDACIÓN DE VARIABLES DE ENTORNO ---
+// Es una buena práctica asegurarse de que todas las variables necesarias están presentes al inicio.
+const requiredEnvVars = ['FIREBASE_SERVICE_ACCOUNT_BASE64', 'PORT'];
+for (const varName of requiredEnvVars) {
+    if (!process.env[varName]) {
+        // En un entorno de producción, esto detendrá la aplicación si falta una clave,
+        // lo cual es bueno para evitar errores inesperados.
+        throw new Error(`Error: La variable de entorno ${varName} no está definida.`);
+    }
+}
+
+// --- CONFIGURACIÓN DE FIREBASE (DESDE .env) ---
+const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64!;
+// Decodificamos la clave desde Base64
+const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
+const serviceAccount = JSON.parse(serviceAccountJson);
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+const db = admin.firestore();
+const webhooksCollection = db.collection('webhooks');
+// ---------------------------------------------
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SECRET_KEY = 'NLnxPWbIPqHLFeZy';
 
-app.use(bodyParser.json());
+// Middleware para parsear el cuerpo crudo de la petición, necesario para la firma
+// Se aplica a la ruta específica del webhook.
+app.use('/api/v1/webhook', express.raw({ type: 'application/json' }));
 
-const verifySignature = (req, res, buf) => {
-  const signature = req.headers['x-passslot-signature'];
-  if (!signature) {
-    console.error('No signature provided');
-    return res.status(401).send('No signature provided');
-  }
+// Middleware para parsear JSON, se usará para las rutas de administración.
+app.use(express.json());
 
-  const hmac = crypto.createHmac('sha1', SECRET_KEY);
-  hmac.update(buf, 'utf-8');
-  const digest = `sha1=${hmac.digest('hex')}`;
+// Servir el archivo estático del frontend (nuestro panel de control)
+app.get('/', (req, res) => {
+    res.sendFile('index.html', { root: '.' });
+});
 
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
-    console.error('Invalid signature');
-    return res.status(403).send('Invalid signature');
-  }
-};
 
-app.post('/webhook', async (req, res) => {
-  const { type, data } = req.body;
-  console.log('Evento recibido:', JSON.stringify(req.body, null, 2));
-
-  if (type === 'webhook.verify') {
-    console.log('Manejando verificación del webhook con token:', data.token);
-    return res.status(200).json({ token: data.token });
-  }
-
-  const passSerialNumber = data?.passSerialNumber;
-  if (!passSerialNumber) {
-    console.error('passSerialNumber no encontrado en el evento');
-    return res.status(400).send('passSerialNumber no encontrado');
-  }
+// EL ENDPOINT GENÉRICO PARA RECIBIR TODOS LOS WEBHOOKS
+app.post('/api/v1/webhook/:webhookId', async (req, res) => {
+  const { webhookId } = req.params;
 
   try {
-    const userResponse = await axios.get(`https://app.chatgptbuilder.io/api/users/find_by_custom_field?field_id=304850&value=${passSerialNumber}`, {
-      headers: {
-        'accept': 'application/json',
-        'X-ACCESS-TOKEN': '1872077.CwMkMqynAn4DL78vhHIBgcyzrcpYCA08Y8WnAYZ2pccBlo'
-      }
-    });
+    // 1. Obtener la configuración del webhook desde Firestore
+    const webhookDoc = await webhooksCollection.doc(webhookId).get();
+    if (!webhookDoc.exists) {
+      console.error(`Configuración no encontrada para el webhookId: ${webhookId}`);
+      return res.status(404).send('Configuración de Webhook no encontrada.');
+    }
+    const config = webhookDoc.data()!;
 
-    if (userResponse.data.data.length === 0) {
-      console.error('Usuario no encontrado con el passSerialNumber proporcionado');
-      return res.status(404).send('Usuario no encontrado');
+    // 2. Verificar si el webhook está activo
+    if (!config.isActive) {
+        console.log(`Intento de uso de webhook inactivo: ${webhookId}`);
+        return res.status(403).send('Este webhook está inactivo.');
     }
 
-    const userId = userResponse.data.data[0].id;
+    // 3. Verificar la firma usando la SECRET_KEY de la configuración
+    const signature = req.headers['x-passslot-signature'] as string;
+    if (!signature) {
+      return res.status(401).send('No signature provided');
+    }
 
-    const messageResponse = await axios.post(`https://app.chatgptbuilder.io/api/users/${userId}/send/1756589899074`, {}, {
-      headers: {
-        'accept': 'application/json',
-        'X-ACCESS-TOKEN': '1872077.CwMkMqynAn4DL78vhHIBgcyzrcpYCA08Y8WnAYZ2pccBlo'
-      }
+    const hmac = crypto.createHmac('sha1', config.secretKey);
+    hmac.update(req.body); // Usamos el buffer crudo
+    const digest = `sha1=${hmac.digest('hex')}`;
+
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
+      console.error('Invalid signature for webhookId:', webhookId);
+      return res.status(403).send('Invalid signature');
+    }
+
+    // 4. Procesar el evento
+    const eventData = JSON.parse(req.body.toString());
+    const { type, data } = eventData;
+    console.log(`Evento recibido para ${config.businessName}:`, JSON.stringify(eventData, null, 2));
+
+    // Manejo de la verificación inicial del webhook
+    if (type === 'webhook.verify') {
+      return res.status(200).json({ token: data.token });
+    }
+
+    const passSerialNumber = data?.passSerialNumber;
+    if (!passSerialNumber) {
+      return res.status(400).send('passSerialNumber no encontrado');
+    }
+
+    // 5. Lógica de negocio: interactuar con la API externa
+    const userResponse = await axios.get(`https://app.chatgptbuilder.io/api/users/find_by_custom_field?field_id=${config.customFieldId}&value=${passSerialNumber}`, {
+      headers: { 'accept': 'application/json', 'X-ACCESS-TOKEN': config.apiToken }
     });
 
-    console.log('Mensaje enviado exitosamente al usuario:', messageResponse.data);
-    res.status(200).send('Evento procesado con éxito y mensaje enviado.');
-  } catch (error) {
-    console.error('Error al procesar el evento o al enviar el mensaje:', error.response?.data || error.message);
-    res.status(500).send('Error al procesar el evento o al enviar el mensaje');
+    if (!userResponse.data.data || userResponse.data.data.length === 0) {
+      console.log(`Usuario no encontrado para ${config.businessName} con CUF ${passSerialNumber}`);
+      return res.status(404).send('Usuario no encontrado');
+    }
+    const userId = userResponse.data.data[0].id;
+
+    await axios.post(`https://app.chatgptbuilder.io/api/users/${userId}/send/${config.flowId}`, {}, {
+      headers: { 'accept': 'application/json', 'X-ACCESS-TOKEN': config.apiToken }
+    });
+
+    res.status(200).send('Evento procesado con éxito.');
+
+  } catch (error: any) {
+    console.error(`Error procesando webhook ${webhookId}:`, error.response?.data || error.message);
+    res.status(500).send('Error interno del servidor.');
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+// =======================================================
+// ===     API DE ADMINISTRACIÓN (CRUD) PARA EL FRONTEND ===
+// =======================================================
+
+// GET: Obtener todas las configuraciones de webhooks
+app.get('/admin/webhooks', async (req, res) => {
+    try {
+        const snapshot = await webhooksCollection.get();
+        const webhooks = snapshot.docs.map(doc => {
+            const data = doc.data();
+            // No enviar las claves secretas al frontend por seguridad
+            return {
+                id: doc.id,
+                businessName: data.businessName,
+                customFieldId: data.customFieldId,
+                flowId: data.flowId,
+                isActive: data.isActive
+            };
+        });
+        res.status(200).json(webhooks);
+    } catch (error) {
+        console.error("Error al obtener webhooks:", error);
+        res.status(500).send("Error al obtener las configuraciones.");
+    }
 });
+
+// POST: Crear una nueva configuración de webhook
+app.post('/admin/webhooks', async (req, res) => {
+    try {
+        const newWebhook = req.body;
+        // Validación simple
+        if (!newWebhook.businessName || !newWebhook.secretKey || !newWebhook.apiToken) {
+            return res.status(400).send("Faltan campos requeridos.");
+        }
+
+        const docRef = await webhooksCollection.add(newWebhook);
+        res.status(201).json({ id: docRef.id, ...newWebhook });
+
+    } catch (error) {
+        console.error("Error al crear webhook:", error);
+        res.status(500).send("Error al crear la configuración.");
+    }
+});
+
+// DELETE: Eliminar una configuración de webhook por su ID
+app.delete('/admin/webhooks/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const webhookDoc = webhooksCollection.doc(id);
+
+        const doc = await webhookDoc.get();
+        if (!doc.exists) {
+            return res.status(404).send("Webhook no encontrado.");
+        }
+
+        await webhookDoc.delete();
+        res.status(200).send(`Webhook ${id} eliminado correctamente.`);
+
+    } catch (error) {
+        console.error("Error al eliminar webhook:", error);
+        res.status(500).send("Error al eliminar la configuración.");
+    }
+});
+
+
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en el puerto ${PORT} en modo ${process.env.NODE_ENV || 'development'}`);
+});
+
