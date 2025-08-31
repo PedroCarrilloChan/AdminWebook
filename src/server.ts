@@ -33,47 +33,8 @@ const webhooksCollection = db.collection('webhooks');
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
-// Middleware para parsear el cuerpo crudo de la petición con verificación de firma
-app.use('/api/v1/webhook/:webhookId', express.raw({ 
-  type: 'application/json',
-  verify: async (req: any, res: any, buf: Buffer) => {
-    try {
-      // Obtener el webhookId de los parámetros
-      const webhookId = req.params.webhookId;
-      
-      // Obtener la configuración del webhook desde Firestore
-      const webhookDoc = await webhooksCollection.doc(webhookId).get();
-      if (!webhookDoc.exists) {
-        console.error(`Configuración no encontrada para el webhookId: ${webhookId}`);
-        return res.status(404).send('Configuración de Webhook no encontrada.');
-      }
-      
-      const config = webhookDoc.data()!;
-      
-      // Verificar la firma
-      const signature = req.headers['x-passslot-signature'] as string;
-      if (!signature) {
-        console.error('No signature provided');
-        return res.status(401).send('No signature provided');
-      }
-
-      const hmac = crypto.createHmac('sha1', config.secretKey);
-      hmac.update(buf);
-      const digest = `sha1=${hmac.digest('hex')}`;
-
-      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
-        console.error('Invalid signature for webhookId:', webhookId);
-        return res.status(403).send('Invalid signature');
-      }
-      
-      // Guardar la configuración en el request para usarla después
-      req.webhookConfig = config;
-    } catch (error) {
-      console.error('Error en verificación de firma:', error);
-      return res.status(500).send('Error en verificación');
-    }
-  }
-}));
+// Middleware para parsear el cuerpo crudo de la petición
+app.use('/api/v1/webhook/:webhookId', express.raw({ type: 'application/json' }));
 
 // Middleware para parsear JSON, se usará para las rutas de administración.
 app.use(express.json());
@@ -87,9 +48,33 @@ app.get('/', (req, res) => {
 // EL ENDPOINT GENÉRICO PARA RECIBIR TODOS LOS WEBHOOKS
 app.post('/api/v1/webhook/:webhookId', async (req: any, res) => {
   const { webhookId } = req.params;
-  const config = req.webhookConfig; // Ya verificada en el middleware
 
   try {
+    // Obtener la configuración del webhook desde Firestore
+    const webhookDoc = await webhooksCollection.doc(webhookId).get();
+    if (!webhookDoc.exists) {
+      console.error(`Configuración no encontrada para el webhookId: ${webhookId}`);
+      return res.status(404).send('Configuración de Webhook no encontrada.');
+    }
+    
+    const config = webhookDoc.data()!;
+    
+    // Verificar la firma
+    const signature = req.headers['x-passslot-signature'] as string;
+    if (!signature) {
+      console.error('No signature provided');
+      return res.status(401).send('No signature provided');
+    }
+
+    const hmac = crypto.createHmac('sha1', config.secretKey);
+    hmac.update(req.body);
+    const digest = `sha1=${hmac.digest('hex')}`;
+
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
+      console.error('Invalid signature for webhookId:', webhookId);
+      return res.status(403).send('Invalid signature');
+    }
+
     // 1. Verificar si el webhook está activo
     if (!config.isActive) {
         console.log(`Intento de uso de webhook inactivo: ${webhookId}`);
