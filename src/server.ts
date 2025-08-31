@@ -42,7 +42,7 @@ app.post('/webhook', async (req, res) => {
   }
 
   try {
-    const userResponse = await axios.get(`https://app.chatgptbuilder.io/api/users/find_by_custom_field?field_id=941905&value=${passSerialNumber}`, {
+    const userResponse = await axios.get(`https://app.chatgptbuilder.io/api/users/find_by_custom_field?field_id=304850&value=${passSerialNumber}`, {
       headers: {
         'accept': 'application/json',
         'X-ACCESS-TOKEN': '1872077.CwMkMqynAn4DL78vhHIBgcyzrcpYCA08Y8WnAYZ2pccBlo'

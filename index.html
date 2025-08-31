@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Webhooks</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .input-group { margin-bottom: 1rem; }
+        .input-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+        .input-group input { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #D1D5DB; transition: border-color 0.2s, box-shadow 0.2s; }
+        .input-group input:focus { border-color: #3B82F6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4); outline: none; }
+        .generated-url { background-color: #F3F4F6; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem; word-break: break-all; border: 1px solid #E5E7EB; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-8 max-w-4xl">
+        <h1 class="text-3xl font-bold mb-6 text-gray-900">Gestor de Conexiones de Webhooks</h1>
+
+        <!-- Formulario para crear un nuevo Webhook -->
+        <div class="bg-white p-6 sm:p-8 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Nueva Conexión</h2>
+            <form id="webhook-form">
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="input-group">
+                        <label for="businessName">Nombre del Negocio</label>
+                        <input type="text" id="businessName" placeholder="Ej: Tienda de Ropa XYZ" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="secretKey">Secret Key (para verificar firma)</label>
+                        <input type="password" id="secretKey" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="apiToken">API Token (ChatbotBuilder)</label>
+                        <input type="password" id="apiToken" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="customFieldId">ID del Campo Personalizado (CUF)</label>
+                        <input type="text" id="customFieldId" placeholder="Ej: 304850" required>
+                    </div>
+                    <div class="input-group md:col-span-2">
+                        <label for="flowId">ID del Flujo a Enviar</label>
+                        <input type="text" id="flowId" placeholder="Ej: 1756589899074" required>
+                    </div>
+                </div>
+                <button type="submit" class="mt-4 w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    Crear Conexión y Generar URL
+                </button>
+            </form>
+        </div>
+
+        <!-- Lista de Webhooks existentes -->
+        <div class="bg-white p-6 sm:p-8 rounded-lg shadow-md">
+            <h2 class="text-2xl font-semibold mb-4">Conexiones Activas</h2>
+            <div id="webhooks-list" class="space-y-4">
+                <!-- Las conexiones se insertarán aquí dinámicamente -->
+                <p class="text-gray-500">Aún no hay conexiones. ¡Crea una!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('webhook-form');
+        const webhooksList = document.getElementById('webhooks-list');
+
+        // La URL base se determina dinámicamente. Esto funciona si el frontend y el backend
+        // se sirven desde el mismo dominio, como en Replit.
+        const API_BASE_URL = window.location.origin; 
+
+        // --- SIMULACIÓN DE BACKEND ---
+        // En un futuro, reemplazaremos estas funciones con llamadas reales a la API.
+
+        let simulatedDatabase = [];
+
+        async function createWebhookConfig(config) {
+            console.log("Enviando al backend (simulado):", config);
+            const fakeId = 'whook_' + Math.random().toString(36).substring(2, 9);
+            const newWebhook = { id: fakeId, ...config };
+            simulatedDatabase.push(newWebhook);
+            return Promise.resolve(newWebhook);
+        }
+
+        async function loadWebhooks() {
+            console.log("Cargando webhooks desde la base de datos (simulada)");
+            // En el futuro:
+            // const response = await fetch(`${API_BASE_URL}/admin/webhooks`);
+            // const webhooks = await response.json();
+            // displayWebhooks(webhooks);
+            displayWebhooks(simulatedDatabase);
+        }
+
+        // --- LÓGICA DE LA INTERFAZ ---
+
+        function displayWebhooks(webhooks) {
+            webhooksList.innerHTML = '';
+            if (webhooks.length === 0) {
+                webhooksList.innerHTML = '<p class="text-gray-500">Aún no hay conexiones. ¡Crea una!</p>';
+                return;
+            }
+
+            webhooks.forEach(wh => {
+                const webhookElement = document.createElement('div');
+                webhookElement.className = 'border p-4 rounded-lg shadow-sm bg-white';
+                webhookElement.setAttribute('data-id', wh.id);
+
+                const generatedUrl = `${API_BASE_URL}/api/v1/webhook/${wh.id}`;
+
+                webhookElement.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="font-bold text-lg">${wh.businessName}</h3>
+                            <p class="text-sm text-gray-600">ID: ${wh.id}</p>
+                        </div>
+                         <button onclick="deleteWebhook('${wh.id}')" class="text-xs bg-red-100 text-red-700 font-semibold py-1 px-3 rounded-full hover:bg-red-200">Eliminar</button>
+                    </div>
+                    <div class="generated-url mt-3">
+                        <p class="font-mono text-sm">${generatedUrl}</p>
+                    </div>
+                    <button onclick="copyToClipboard('${generatedUrl}')" class="mt-2 bg-gray-200 text-sm font-semibold py-1 px-3 rounded-md hover:bg-gray-300">Copiar URL</button>
+                `;
+                webhooksList.appendChild(webhookElement);
+            });
+        }
+
+        function deleteWebhook(id) {
+            // Lógica para eliminar el webhook (simulada)
+            console.log(`Eliminando webhook con ID: ${id}`);
+            simulatedDatabase = simulatedDatabase.filter(wh => wh.id !== id);
+            // Vuelve a dibujar la lista
+            displayWebhooks(simulatedDatabase);
+        }
+
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                alert('¡URL copiada al portapapeles!');
+            } catch (err) {
+                alert('No se pudo copiar la URL.');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newConfig = {
+                businessName: document.getElementById('businessName').value,
+                secretKey: document.getElementById('secretKey').value,
+                apiToken: document.getElementById('apiToken').value,
+                customFieldId: document.getElementById('customFieldId').value,
+                flowId: document.getElementById('flowId').value,
+                isActive: true
+            };
+
+            try {
+                await createWebhookConfig(newConfig);
+                // Vuelve a cargar y mostrar todos los webhooks
+                await loadWebhooks(); 
+                form.reset();
+            } catch (error) {
+                console.error("Error al crear la conexión:", error);
+                alert("Hubo un error al crear la conexión. Revisa la consola.");
+            }
+        });
+
+        // Cargar los webhooks cuando la página esté lista
+        document.addEventListener('DOMContentLoaded', loadWebhooks);
+    </script>
+</body>
+</html>
+
