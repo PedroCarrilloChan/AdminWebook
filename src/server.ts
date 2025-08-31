@@ -59,10 +59,20 @@ app.post('/api/v1/webhook/:webhookId', async (req: any, res) => {
     
     const config = webhookDoc.data()!;
     
-    // Verificar la firma
+    // Verificar la firma (solo si no es una verificación de webhook)
+    const eventData = JSON.parse(req.body.toString());
+    const { type, data } = eventData;
+    
+    // Para verificación de webhook, no se requiere firma
+    if (type === 'webhook.verify') {
+      console.log('Manejando verificación del webhook con token:', data.token);
+      return res.status(200).json({ token: data.token });
+    }
+
+    // Para otros eventos, verificar la firma
     const signature = req.headers['x-passslot-signature'] as string;
     if (!signature) {
-      console.error('No signature provided');
+      console.error('No signature provided for event type:', type);
       return res.status(401).send('No signature provided');
     }
 
@@ -82,15 +92,7 @@ app.post('/api/v1/webhook/:webhookId', async (req: any, res) => {
     }
 
     // 2. Procesar el evento
-    const eventData = JSON.parse(req.body.toString());
-    const { type, data } = eventData;
     console.log(`Evento recibido para ${config.businessName}:`, JSON.stringify(eventData, null, 2));
-
-    // Manejo de la verificación inicial del webhook
-    if (type === 'webhook.verify') {
-      console.log('Manejando verificación del webhook con token:', data.token);
-      return res.status(200).json({ token: data.token });
-    }
 
     const passSerialNumber = data?.passSerialNumber;
     if (!passSerialNumber) {
