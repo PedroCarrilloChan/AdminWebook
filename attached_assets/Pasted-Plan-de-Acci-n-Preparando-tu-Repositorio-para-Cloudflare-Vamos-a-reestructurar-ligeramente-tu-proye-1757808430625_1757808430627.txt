@@ -1,0 +1,60 @@
+Plan de Acción: Preparando tu Repositorio para Cloudflare
+Vamos a reestructurar ligeramente tu proyecto para que se alinee con el modelo de Cloudflare Pages. Estos son los pasos que debes seguir en tu código (en Replit o en tu máquina local) antes de desplegar.
+
+1. Crear la Carpeta para el Frontend (public)
+
+En la raíz de tu proyecto, crea una nueva carpeta llamada public. Esta carpeta contendrá todos los archivos que los visitantes verán directamente.
+
+2. Mover tus Archivos de Frontend
+
+Mueve tu archivo index.html a la nueva carpeta public.
+
+Mueve cualquier otro archivo estático que use tu frontend, como generated-icon.png, también a la carpeta public.
+
+3. Crear la Carpeta para el Backend (functions)
+
+En la raíz de tu proyecto, crea otra carpeta nueva llamada functions. Aquí es donde vivirá la lógica de tu API en formato serverless.
+
+4. "Traducir" la Lógica del Backend
+
+Este es el paso más importante. No vamos a mover el archivo src/server.ts directamente.
+
+En su lugar, vamos a tomar la lógica de cada una de tus rutas de Express de ese archivo y la recrearemos en archivos separados dentro de la carpeta functions.
+
+Ejemplo Práctico:
+
+Si en tu src/server.ts tienes una ruta como esta para el webhook receiver:
+
+TypeScript
+
+app.post('/api/v1/webhook/:webhookId', (req, res) => {
+  // ... toda tu lógica para validar y procesar el webhook aquí ...
+});
+Entonces, crearás un nuevo archivo en tu proyecto en la ruta: functions/api/v1/webhook/[[path]].ts.
+
+Dentro de ese nuevo archivo, pondrás esa misma lógica, pero adaptada al formato de Cloudflare Functions, como vimos en el ejemplo anterior (export async function onRequestPost(context) { ... }).
+
+5. Limpieza y package.json
+
+Las carpetas como .config, attached_assets y los archivos de Replit (.replit, replit.nix) serán ignorados por Cloudflare, así que no te preocupes por ellos.
+
+Asegúrate de que tu package.json principal tenga todas las dependencias que tu backend necesita (firebase-admin, axios, etc.).
+
+La Nueva Estructura de tu Repositorio
+Después de estos cambios, tu repositorio se verá así, listo para Cloudflare:
+
+/
+├── public/                 <-- TU FRONTEND
+│   ├── index.html
+│   └── generated-icon.png
+│
+├── functions/              <-- TU BACKEND SERVERLESS
+│   └── api/
+│       └── v1/
+│           └── webhook/
+│               └── [[path]].ts
+│   └── admin/
+│       └── webhooks.ts
+│
+├── package.json            <-- TUS DEPENDENCIAS
+└── tsconfig.json
