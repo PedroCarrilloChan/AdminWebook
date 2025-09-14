@@ -1,21 +1,22 @@
 
 import crypto from 'crypto';
 import axios from 'axios';
-import admin from 'firebase-admin';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
-// Inicializar Firebase Admin
-if (!admin.apps.length) {
-  const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64!;
-  const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
-  const serviceAccount = JSON.parse(serviceAccountJson);
-  
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-}
+// Configuración de Firebase (usando variables de entorno)
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY!,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN!,
+  projectId: process.env.FIREBASE_PROJECT_ID!,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET!,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID!,
+  appId: process.env.FIREBASE_APP_ID!
+};
 
-const db = admin.firestore();
-const webhooksCollection = db.collection('webhooks');
+// Inicializar Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 export async function onRequestPost(context: any): Promise<Response> {
   const { request } = context;
@@ -25,13 +26,15 @@ export async function onRequestPost(context: any): Promise<Response> {
 
   try {
     // Obtener la configuración del webhook desde Firestore
-    const webhookDoc = await webhooksCollection.doc(webhookId).get();
-    if (!webhookDoc.exists) {
+    const webhookDocRef = doc(db, 'webhooks', webhookId);
+    const webhookDocSnap = await getDoc(webhookDocRef);
+    
+    if (!webhookDocSnap.exists()) {
       console.error(`Configuración no encontrada para el webhookId: ${webhookId}`);
       return new Response('Configuración de Webhook no encontrada.', { status: 404 });
     }
     
-    const config = webhookDoc.data()!;
+    const config = webhookDocSnap.data();
     
     // Leer el body como texto
     const bodyText = await request.text();

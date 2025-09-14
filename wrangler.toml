@@ -5,6 +5,12 @@ pages_build_output_dir = "public"
 
 [env.production.vars]
 NODE_ENV = "production"
+FIREBASE_API_KEY = "your-api-key"
+FIREBASE_AUTH_DOMAIN = "your-project.firebaseapp.com"
+FIREBASE_PROJECT_ID = "your-project-id"
+FIREBASE_STORAGE_BUCKET = "your-project.appspot.com"
+FIREBASE_MESSAGING_SENDER_ID = "your-sender-id"
+FIREBASE_APP_ID = "your-app-id"
 
 [[env.production.kv_namespaces]]
 binding = "WEBHOOKS_KV"

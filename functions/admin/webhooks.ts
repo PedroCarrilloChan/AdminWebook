@@ -1,29 +1,31 @@
 
-import admin from 'firebase-admin';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, getDocs, doc, addDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
-// Inicializar Firebase Admin
-if (!admin.apps.length) {
-  const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64!;
-  const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
-  const serviceAccount = JSON.parse(serviceAccountJson);
-  
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-}
+// Configuración de Firebase (usando variables de entorno)
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY!,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN!,
+  projectId: process.env.FIREBASE_PROJECT_ID!,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET!,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID!,
+  appId: process.env.FIREBASE_APP_ID!
+};
 
-const db = admin.firestore();
-const webhooksCollection = db.collection('webhooks');
+// Inicializar Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const webhooksCollection = collection(db, 'webhooks');
 
 // GET: Obtener todas las configuraciones de webhooks
 export async function onRequestGet(context: any): Promise<Response> {
   try {
-    const snapshot = await webhooksCollection.get();
-    const webhooks = snapshot.docs.map(doc => {
-      const data = doc.data();
+    const snapshot = await getDocs(webhooksCollection);
+    const webhooks = snapshot.docs.map(docSnapshot => {
+      const data = docSnapshot.data();
       // No enviar las claves secretas al frontend por seguridad
       return {
-        id: doc.id,
+        id: docSnapshot.id,
         businessName: data.businessName,
         customFieldId: data.customFieldId,
         flowId: data.flowId,
@@ -51,7 +53,7 @@ export async function onRequestPost(context: any): Promise<Response> {
       return new Response("Faltan campos requeridos.", { status: 400 });
     }
 
-    const docRef = await webhooksCollection.add(newWebhook);
+    const docRef = await addDoc(webhooksCollection, newWebhook);
     
     return new Response(JSON.stringify({ id: docRef.id, ...newWebhook }), {
       status: 201,
@@ -76,14 +78,14 @@ export async function onRequestPut(context: any): Promise<Response> {
       return new Response("Faltan campos requeridos.", { status: 400 });
     }
 
-    const webhookDoc = webhooksCollection.doc(id);
-    const doc = await webhookDoc.get();
+    const webhookDocRef = doc(db, 'webhooks', id);
+    const docSnap = await getDoc(webhookDocRef);
     
-    if (!doc.exists) {
+    if (!docSnap.exists()) {
       return new Response("Webhook no encontrado.", { status: 404 });
     }
 
-    await webhookDoc.update(updatedData);
+    await updateDoc(webhookDocRef, updatedData);
     
     return new Response(JSON.stringify({ id, ...updatedData }), {
       status: 200,
@@ -101,14 +103,14 @@ export async function onRequestDelete(context: any): Promise<Response> {
     const url = new URL(context.request.url);
     const pathParts = url.pathname.split('/');
     const id = pathParts[pathParts.length - 1];
-    const webhookDoc = webhooksCollection.doc(id);
+    const webhookDocRef = doc(db, 'webhooks', id);
 
-    const doc = await webhookDoc.get();
-    if (!doc.exists) {
+    const docSnap = await getDoc(webhookDocRef);
+    if (!docSnap.exists()) {
       return new Response("Webhook no encontrado.", { status: 404 });
     }
 
-    await webhookDoc.delete();
+    await deleteDoc(webhookDocRef);
     
     return new Response(`Webhook ${id} eliminado correctamente.`, { status: 200 });
   } catch (error) {
