@@ -33,7 +33,7 @@ const webhooksCollection = db.collection('webhooks');
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
-// Middleware para parsear el cuerpo crudo de la petición
+// Middleware para parsear el cuerpo crudo de la petic
 app.use('/api/v1/webhook/:webhookId', express.raw({ type: 'application/json' }));
 
 // Middleware para parsear JSON, se usará para las rutas de administración.
