@@ -15,3 +15,6 @@ FIREBASE_APP_ID = "your-app-id"
 [[env.production.kv_namespaces]]
 binding = "WEBHOOKS_KV"
 id = "your-kv-namespace-id"
+
+[compatibility_flags]
+nodejs_compat = true
