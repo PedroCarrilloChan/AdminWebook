@@ -1,0 +1,82 @@
+Paso 1: Modificar tu package.json
+Necesitamos cambiar las librerías.
+
+Quita la librería de admin:
+
+Bash
+
+npm uninstall firebase-admin
+Añade la librería de cliente:
+
+Bash
+
+npm install firebase
+Paso 2: Modificar tu Código en la Carpeta /functions
+Aquí es donde "traducimos" el código. La forma de inicializar y usar Firebase cambia un poco.
+
+En lugar de esto (el código antiguo con firebase-admin):
+
+TypeScript
+
+import admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
+
+// Esto requiere un archivo de credenciales o variables de entorno especiales
+admin.initializeApp({ ... });
+
+const db = getFirestore();
+const docRef = db.collection('webhooks').doc(webhookId);
+Lo cambiarás a esto (el nuevo código con firebase):
+
+TypeScript
+
+// Importa las nuevas librerías
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+
+// La configuración de tu proyecto de Firebase (la obtienes del panel de Firebase)
+const firebaseConfig = {
+  apiKey: "AIza...",
+  authDomain: "tu-proyecto.firebaseapp.com",
+  projectId: "tu-proyecto",
+  // ...etc
+};
+
+// Inicializa la app
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Así se lee un documento
+async function getWebhookConfig(webhookId) {
+  const docRef = doc(db, "webhooks", webhookId);
+  const docSnap = await getDoc(docRef);
+
+  if (docSnap.exists()) {
+    return docSnap.data();
+  } else {
+    throw new Error("No se encontró el webhook!");
+  }
+}
+
+// Así se escribe un documento
+async function createWebhook(webhookId, data) {
+    await setDoc(doc(db, "webhooks", webhookId), data);
+}
+
+// ...y así adaptarías tu lógica en las funciones onRequest...
+Puntos Clave de la Adaptación:
+
+Inicialización: initializeApp ahora usa el objeto firebaseConfig que encuentras en la configuración de tu proyecto en la consola de Firebase (es el mismo que usarías para un sitio web).
+
+Acceso a la DB: Las funciones para leer y escribir cambian un poco (doc, getDoc, setDoc, etc.). La documentación de Firebase para la Web (versión 9) es tu mejor guía.
+
+Variables de Entorno: Las credenciales de firebaseConfig (como apiKey) son seguras para exponer en el frontend/funciones, pero es una buena práctica guardarlas como variables de entorno en Cloudflare Pages, como ya vimos.
+
+Tu Misión
+Cambia la dependencia en tu package.json de firebase-admin a firebase.
+
+Adapta tu código en la carpeta functions para usar el nuevo SDK de cliente de Firebase.
+
+Asegúrate de tener las variables de firebaseConfig en los "Environment Variables" de tu proyecto de Cloudflare Pages.
+
+Haz git push con los cambios.
