@@ -4,10 +4,12 @@
   "description": "Plataforma para gestionar webhooks de forma dinámica.",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "ts-node src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "start:prod": "NODE_ENV=production npm run build && npm start"
+    "dev": "node dev-server.js",
+    "dev:functions": "wrangler pages dev public --compatibility-date=2024-01-01",
+    "build": "echo 'Build completed - static files ready'",
+    "deploy": "wrangler pages deploy public",
+    "start": "node dev-server.js",
+    "start:prod": "NODE_ENV=production npm start"
   },
   "dependencies": {
     "axios": "^1.6.8",
@@ -18,7 +20,9 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^20.12.7",
+    "@cloudflare/workers-types": "^4.20240821.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "wrangler": "^3.0.0"
   }
 }

@@ -1,0 +1,11 @@
+
+name = "smartwebhooks"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "public"
+
+[env.production.vars]
+NODE_ENV = "production"
+
+[[env.production.kv_namespaces]]
+binding = "WEBHOOKS_KV"
+id = "your-kv-namespace-id"
