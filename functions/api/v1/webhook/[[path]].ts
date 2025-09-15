@@ -1,5 +1,5 @@
 
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import axios from 'axios';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
