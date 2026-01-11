@@ -1,46 +1,43 @@
 
 import crypto from 'node:crypto';
 import axios from 'axios';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
-// Configuración de Firebase (usando variables de entorno)
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY!,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN!,
-  projectId: process.env.FIREBASE_PROJECT_ID!,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET!,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID!,
-  appId: process.env.FIREBASE_APP_ID!
-};
+interface Env {
+  WEBHOOKS_KV: KVNamespace;
+}
 
-// Inicializar Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+interface Webhook {
+  id: string;
+  businessName: string;
+  secretKey: string;
+  apiToken: string;
+  customFieldId: string;
+  flowId: string;
+  isActive: boolean;
+}
 
-export async function onRequestPost(context: any): Promise<Response> {
-  const { request } = context;
+export async function onRequestPost(context: { env: Env; request: Request }): Promise<Response> {
+  const { request, env } = context;
   const url = new URL(request.url);
   const pathParts = url.pathname.split('/');
   const webhookId = pathParts[pathParts.length - 1];
 
   try {
-    // Obtener la configuración del webhook desde Firestore
-    const webhookDocRef = doc(db, 'webhooks', webhookId);
-    const webhookDocSnap = await getDoc(webhookDocRef);
-    
-    if (!webhookDocSnap.exists()) {
+    // Obtener la configuración del webhook desde KV
+    const webhookData = await env.WEBHOOKS_KV.get(`webhook:${webhookId}`);
+
+    if (!webhookData) {
       console.error(`Configuración no encontrada para el webhookId: ${webhookId}`);
       return new Response('Configuración de Webhook no encontrada.', { status: 404 });
     }
-    
-    const config = webhookDocSnap.data();
-    
+
+    const config: Webhook = JSON.parse(webhookData);
+
     // Leer el body como texto
     const bodyText = await request.text();
     const eventData = JSON.parse(bodyText);
     const { type, data } = eventData;
-    
+
     // Para verificación de webhook, no se requiere firma
     if (type === 'webhook.verify') {
       console.log('Manejando verificación del webhook con token:', data.token);
@@ -89,7 +86,7 @@ export async function onRequestPost(context: any): Promise<Response> {
       console.log(`Usuario no encontrado para ${config.businessName} con CUF ${passSerialNumber}`);
       return new Response('Usuario no encontrado', { status: 404 });
     }
-    
+
     const userId = userResponse.data.data[0].id;
 
     await axios.post(`https://app.chatgptbuilder.io/api/users/${userId}/send/${config.flowId}`, {}, {

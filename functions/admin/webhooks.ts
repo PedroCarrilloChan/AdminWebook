@@ -1,39 +1,55 @@
 
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, addDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+interface Env {
+  WEBHOOKS_KV: KVNamespace;
+}
 
-// Configuración de Firebase (usando variables de entorno)
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY!,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN!,
-  projectId: process.env.FIREBASE_PROJECT_ID!,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET!,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID!,
-  appId: process.env.FIREBASE_APP_ID!
-};
+interface Webhook {
+  id: string;
+  businessName: string;
+  secretKey: string;
+  apiToken: string;
+  customFieldId: string;
+  flowId: string;
+  isActive: boolean;
+}
 
-// Inicializar Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const webhooksCollection = collection(db, 'webhooks');
+// Generar ID único para webhooks
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
 
 // GET: Obtener todas las configuraciones de webhooks
-export async function onRequestGet(context: any): Promise<Response> {
+export async function onRequestGet(context: { env: Env }): Promise<Response> {
   try {
-    const snapshot = await getDocs(webhooksCollection);
-    const webhooks = snapshot.docs.map(docSnapshot => {
-      const data = docSnapshot.data();
-      // No enviar las claves secretas al frontend por seguridad
-      return {
-        id: docSnapshot.id,
-        businessName: data.businessName,
-        customFieldId: data.customFieldId,
-        flowId: data.flowId,
-        isActive: data.isActive
-      };
-    });
-    
-    return new Response(JSON.stringify(webhooks), {
+    const { WEBHOOKS_KV } = context.env;
+
+    // Obtener la lista de IDs de webhooks
+    const indexKey = 'webhooks:index';
+    const indexData = await WEBHOOKS_KV.get(indexKey);
+    const webhookIds: string[] = indexData ? JSON.parse(indexData) : [];
+
+    // Obtener todos los webhooks
+    const webhooks = await Promise.all(
+      webhookIds.map(async (id) => {
+        const webhookData = await WEBHOOKS_KV.get(`webhook:${id}`);
+        if (!webhookData) return null;
+        const webhook: Webhook = JSON.parse(webhookData);
+
+        // No enviar las claves secretas al frontend por seguridad
+        return {
+          id: webhook.id,
+          businessName: webhook.businessName,
+          customFieldId: webhook.customFieldId,
+          flowId: webhook.flowId,
+          isActive: webhook.isActive
+        };
+      })
+    );
+
+    // Filtrar nulls (webhooks que fueron eliminados)
+    const validWebhooks = webhooks.filter(w => w !== null);
+
+    return new Response(JSON.stringify(validWebhooks), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -44,18 +60,31 @@ export async function onRequestGet(context: any): Promise<Response> {
 }
 
 // POST: Crear una nueva configuración de webhook
-export async function onRequestPost(context: any): Promise<Response> {
+export async function onRequestPost(context: { env: Env; request: Request }): Promise<Response> {
   try {
-    const newWebhook = await context.request.json();
-    
+    const { WEBHOOKS_KV } = context.env;
+    const newWebhook = await context.request.json() as Omit<Webhook, 'id'>;
+
     // Validación simple
     if (!newWebhook.businessName || !newWebhook.secretKey || !newWebhook.apiToken) {
       return new Response("Faltan campos requeridos.", { status: 400 });
     }
 
-    const docRef = await addDoc(webhooksCollection, newWebhook);
-    
-    return new Response(JSON.stringify({ id: docRef.id, ...newWebhook }), {
+    // Generar ID único
+    const id = generateId();
+    const webhook: Webhook = { id, ...newWebhook };
+
+    // Guardar el webhook
+    await WEBHOOKS_KV.put(`webhook:${id}`, JSON.stringify(webhook));
+
+    // Actualizar el índice
+    const indexKey = 'webhooks:index';
+    const indexData = await WEBHOOKS_KV.get(indexKey);
+    const webhookIds: string[] = indexData ? JSON.parse(indexData) : [];
+    webhookIds.push(id);
+    await WEBHOOKS_KV.put(indexKey, JSON.stringify(webhookIds));
+
+    return new Response(JSON.stringify({ id, ...newWebhook }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -66,28 +95,30 @@ export async function onRequestPost(context: any): Promise<Response> {
 }
 
 // PUT: Actualizar una configuración de webhook existente
-export async function onRequestPut(context: any): Promise<Response> {
+export async function onRequestPut(context: { env: Env; request: Request }): Promise<Response> {
   try {
+    const { WEBHOOKS_KV } = context.env;
     const url = new URL(context.request.url);
     const pathParts = url.pathname.split('/');
     const id = pathParts[pathParts.length - 1];
-    const updatedData = await context.request.json();
-    
+    const updatedData = await context.request.json() as Omit<Webhook, 'id'>;
+
     // Validación simple
     if (!updatedData.businessName || !updatedData.secretKey || !updatedData.apiToken) {
       return new Response("Faltan campos requeridos.", { status: 400 });
     }
 
-    const webhookDocRef = doc(db, 'webhooks', id);
-    const docSnap = await getDoc(webhookDocRef);
-    
-    if (!docSnap.exists()) {
+    // Verificar si el webhook existe
+    const existingData = await WEBHOOKS_KV.get(`webhook:${id}`);
+    if (!existingData) {
       return new Response("Webhook no encontrado.", { status: 404 });
     }
 
-    await updateDoc(webhookDocRef, updatedData);
-    
-    return new Response(JSON.stringify({ id, ...updatedData }), {
+    // Actualizar el webhook manteniendo el ID
+    const webhook: Webhook = { id, ...updatedData };
+    await WEBHOOKS_KV.put(`webhook:${id}`, JSON.stringify(webhook));
+
+    return new Response(JSON.stringify(webhook), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -98,20 +129,31 @@ export async function onRequestPut(context: any): Promise<Response> {
 }
 
 // DELETE: Eliminar una configuración de webhook por su ID
-export async function onRequestDelete(context: any): Promise<Response> {
+export async function onRequestDelete(context: { env: Env; request: Request }): Promise<Response> {
   try {
+    const { WEBHOOKS_KV } = context.env;
     const url = new URL(context.request.url);
     const pathParts = url.pathname.split('/');
     const id = pathParts[pathParts.length - 1];
-    const webhookDocRef = doc(db, 'webhooks', id);
 
-    const docSnap = await getDoc(webhookDocRef);
-    if (!docSnap.exists()) {
+    // Verificar si el webhook existe
+    const existingData = await WEBHOOKS_KV.get(`webhook:${id}`);
+    if (!existingData) {
       return new Response("Webhook no encontrado.", { status: 404 });
     }
 
-    await deleteDoc(webhookDocRef);
-    
+    // Eliminar el webhook
+    await WEBHOOKS_KV.delete(`webhook:${id}`);
+
+    // Actualizar el índice
+    const indexKey = 'webhooks:index';
+    const indexData = await WEBHOOKS_KV.get(indexKey);
+    if (indexData) {
+      const webhookIds: string[] = JSON.parse(indexData);
+      const updatedIds = webhookIds.filter(wid => wid !== id);
+      await WEBHOOKS_KV.put(indexKey, JSON.stringify(updatedIds));
+    }
+
     return new Response(`Webhook ${id} eliminado correctamente.`, { status: 200 });
   } catch (error) {
     console.error("Error al eliminar webhook:", error);
