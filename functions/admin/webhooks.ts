@@ -41,6 +41,9 @@ export async function onRequestGet(context: { env: Env }): Promise<Response> {
           provider: data.provider || 'chatbotbuilder',
           providerConfig: data.providerConfig || {},
           isActive: data.isActive,
+          lastEventAt: data.lastEventAt || null,
+          lastEventType: data.lastEventType || null,
+          lastEventStatus: data.lastEventStatus || null,
         });
       }
     }
