@@ -440,6 +440,7 @@
             webhooks.forEach(wh => {
                 const fullUrl = `${window.location.origin}/api/v1/webhook/${wh.id}`;
                 const prov = getProviderInfo(wh.provider);
+                const connStatus = getConnectionStatus(wh);
                 const el = document.createElement('div');
                 el.className = 'glass rounded-xl p-5 hover-lift transition-all duration-300 fade-in';
                 el.innerHTML = `
@@ -451,9 +452,13 @@
                                 </div>
                                 <div>
                                     <h3 class="font-bold text-lg text-white">${wh.businessName}</h3>
-                                    <span class="badge bg-blue-400/20 text-blue-300 border border-blue-400/30">${prov.label}</span>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="badge bg-blue-400/20 text-blue-300 border border-blue-400/30">${prov.label}</span>
+                                        <span class="badge ${connStatus.class}">${connStatus.icon} ${connStatus.text}</span>
+                                    </div>
                                 </div>
                             </div>
+                            ${connStatus.detail}
                             ${renderProviderSummary(wh)}
                             <div class="mt-3">
                                 <label class="block text-xs text-gray-400 mb-1">Webhook URL:</label>
@@ -464,6 +469,11 @@
                                     </button>
                                 </div>
                             </div>
+                            <!-- Botón para ver logs -->
+                            <button onclick="toggleLogs('${wh.id}')" class="mt-3 text-xs text-blue-300 hover:text-blue-200 transition-colors">
+                                Ver ultimos eventos
+                            </button>
+                            <div id="logs-${wh.id}" class="hidden mt-2"></div>
                         </div>
                         <div class="flex flex-col items-end space-y-3 ml-4">
                             <span class="badge ${wh.isActive ? 'bg-green-400/20 text-green-300 border border-green-400/30' : 'bg-red-400/20 text-red-300 border border-red-400/30'}">
@@ -503,6 +513,93 @@
                     return '';
             }
         }
+
+        // --- ESTADO DE CONEXIÓN ---
+
+        function getConnectionStatus(wh) {
+            if (!wh.lastEventAt) {
+                return {
+                    icon: '⏳',
+                    text: 'Sin eventos',
+                    class: 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/30',
+                    detail: '<p class="text-xs text-yellow-400/80 mt-1">Esperando primer evento de SmartPasses...</p>',
+                };
+            }
+
+            const lastTime = new Date(wh.lastEventAt);
+            const diffMin = Math.floor((Date.now() - lastTime.getTime()) / 60000);
+            const timeAgo = diffMin < 1 ? 'hace segundos' : diffMin < 60 ? `hace ${diffMin}m` : diffMin < 1440 ? `hace ${Math.floor(diffMin/60)}h` : `hace ${Math.floor(diffMin/1440)}d`;
+
+            if (wh.lastEventStatus === 'error') {
+                return {
+                    icon: '🔴',
+                    text: 'Error',
+                    class: 'bg-red-400/20 text-red-300 border border-red-400/30',
+                    detail: `<p class="text-xs text-red-400/80 mt-1">Ultimo evento: ${wh.lastEventType} (${timeAgo}) — con error</p>`,
+                };
+            }
+
+            const isRecent = diffMin < 1440; // menos de 24h
+            return {
+                icon: isRecent ? '🟢' : '🟡',
+                text: isRecent ? 'Conectado' : 'Inactivo',
+                class: isRecent
+                    ? 'bg-green-400/20 text-green-300 border border-green-400/30'
+                    : 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/30',
+                detail: `<p class="text-xs text-gray-400 mt-1">Ultimo: <strong>${wh.lastEventType}</strong> — ${timeAgo}</p>`,
+            };
+        }
+
+        // --- LOGS ---
+
+        async function toggleLogs(webhookId) {
+            const container = document.getElementById(`logs-${webhookId}`);
+            if (!container) return;
+
+            if (!container.classList.contains('hidden')) {
+                container.classList.add('hidden');
+                container.innerHTML = '';
+                return;
+            }
+
+            container.classList.remove('hidden');
+            container.innerHTML = '<p class="text-xs text-gray-500">Cargando eventos...</p>';
+
+            try {
+                const resp = await fetch(`/admin/logs/${webhookId}`);
+                if (!resp.ok) throw new Error('Error');
+                const logs = await resp.json();
+
+                if (logs.length === 0) {
+                    container.innerHTML = '<p class="text-xs text-gray-500">No hay eventos registrados todavia.</p>';
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="bg-black/30 rounded-lg p-3 max-h-64 overflow-y-auto space-y-2">
+                        <p class="text-xs text-gray-500 mb-2">Ultimos ${logs.length} eventos:</p>
+                        ${logs.map(log => {
+                            const statusIcon = log.status === 'ok' ? '✅' : log.status === 'blocked' ? '🚫' : '❌';
+                            const time = new Date(log.time).toLocaleString();
+                            return `<div class="flex items-start gap-2 text-xs border-b border-white/5 pb-2">
+                                <span>${statusIcon}</span>
+                                <div class="flex-1">
+                                    <div class="flex justify-between">
+                                        <span class="text-white font-medium">${log.type}</span>
+                                        <span class="text-gray-500">${time}</span>
+                                    </div>
+                                    <p class="text-gray-400">${log.message}</p>
+                                    ${log.passSerial ? `<p class="text-gray-500">Serial: ${log.passSerial}</p>` : ''}
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>`;
+            } catch (e) {
+                container.innerHTML = '<p class="text-xs text-red-400">Error al cargar eventos.</p>';
+            }
+        }
+
+        window.toggleLogs = toggleLogs;
 
         window.copyToClipboard = (text, btn) => {
             navigator.clipboard.writeText(text).then(() => {

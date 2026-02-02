@@ -4,19 +4,28 @@ interface Env {
   WEBHOOKS_KV: KVNamespace;
 }
 
+// Guarda un log de evento en KV (máximo 10 por webhook)
+async function logEvent(kv: KVNamespace, webhookId: string, entry: any): Promise<void> {
+  const logKey = `logs:${webhookId}`;
+  const raw = await kv.get(logKey);
+  const logs: any[] = raw ? JSON.parse(raw) : [];
+  logs.unshift(entry); // Más reciente primero
+  if (logs.length > 10) logs.length = 10;
+  await kv.put(logKey, JSON.stringify(logs));
+}
+
 export async function onRequestPost(context: { request: Request; env: Env }): Promise<Response> {
   const { request, env } = context;
   const url = new URL(request.url);
   const pathParts = url.pathname.split('/');
   const webhookId = pathParts[pathParts.length - 1];
+  const now = new Date().toISOString();
 
   try {
     const kv = env.WEBHOOKS_KV;
 
-    // Obtener configuración del webhook desde KV
     const raw = await kv.get(`webhook:${webhookId}`);
     if (!raw) {
-      console.error(`Configuración no encontrada para el webhookId: ${webhookId}`);
       return new Response('Configuración de Webhook no encontrada.', { status: 404 });
     }
 
@@ -28,6 +37,12 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
 
     // Verificación de webhook (no requiere firma)
     if (type === 'webhook.verify') {
+      await logEvent(kv, webhookId, {
+        time: now,
+        type: 'webhook.verify',
+        status: 'ok',
+        message: 'Verificación de webhook exitosa',
+      });
       return new Response(JSON.stringify({ token: data.token }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -37,6 +52,12 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     // Verificar firma HMAC
     const signature = request.headers.get('x-passslot-signature');
     if (!signature) {
+      await logEvent(kv, webhookId, {
+        time: now,
+        type: type || 'unknown',
+        status: 'error',
+        message: 'Sin firma HMAC',
+      });
       return new Response('No signature provided', { status: 401 });
     }
 
@@ -48,14 +69,25 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     const digest = `sha1=${Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')}`;
 
     if (signature !== digest) {
+      await logEvent(kv, webhookId, {
+        time: now,
+        type: type || 'unknown',
+        status: 'error',
+        message: 'Firma HMAC inválida',
+      });
       return new Response('Invalid signature', { status: 403 });
     }
 
     if (!config.isActive) {
+      await logEvent(kv, webhookId, {
+        time: now,
+        type,
+        status: 'blocked',
+        message: 'Webhook inactivo',
+      });
       return new Response('Este webhook está inactivo.', { status: 403 });
     }
 
-    // Retrocompatibilidad: webhooks sin campo provider se tratan como chatbotbuilder
     const providerName = config.provider || 'chatbotbuilder';
     const providerConfig = config.providerConfig || {
       apiToken: config.apiToken,
@@ -65,26 +97,41 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
 
     const provider = getProvider(providerName);
     if (!provider) {
-      console.error(`Provider no encontrado: ${providerName}`);
+      await logEvent(kv, webhookId, {
+        time: now,
+        type,
+        status: 'error',
+        message: `Provider "${providerName}" no encontrado`,
+      });
       return new Response(`Provider "${providerName}" no soportado.`, { status: 400 });
     }
-
-    console.log(`[${config.businessName}] Evento "${type}" → provider "${providerName}"`);
 
     const metadata = {
       webhookId,
       businessName: config.businessName,
-      receivedAt: new Date().toISOString(),
+      receivedAt: now,
     };
 
     const result = await provider.execute(eventData, providerConfig, metadata);
 
+    // Log del resultado (éxito o fallo del provider)
+    await logEvent(kv, webhookId, {
+      time: now,
+      type,
+      status: result.success ? 'ok' : 'error',
+      message: result.message,
+      provider: providerName,
+      passSerial: data?.passSerialNumber || null,
+    });
+
+    // Actualizar último evento en el webhook config
+    const updated = { ...config, lastEventAt: now, lastEventType: type, lastEventStatus: result.success ? 'ok' : 'error' };
+    await kv.put(`webhook:${webhookId}`, JSON.stringify(updated));
+
     if (!result.success) {
-      console.error(`[${config.businessName}] Provider error: ${result.message}`);
       return new Response(result.message, { status: 422 });
     }
 
-    console.log(`[${config.businessName}] OK: ${result.message}`);
     return new Response(JSON.stringify(result), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -92,6 +139,15 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
 
   } catch (error: any) {
     console.error(`Error procesando webhook ${webhookId}:`, error.message);
+    // Intentar loguear el error
+    try {
+      await env.WEBHOOKS_KV.put(`logs:${webhookId}`, JSON.stringify([{
+        time: now,
+        type: 'system',
+        status: 'error',
+        message: `Error interno: ${error.message}`,
+      }]));
+    } catch (_) {}
     return new Response('Error interno del servidor.', { status: 500 });
   }
 }
