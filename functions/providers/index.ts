@@ -124,16 +124,12 @@ const customHttp: ProviderDefinition = {
 // Traduce el tipo de evento PassSlot a una descripción legible
 function getEventDescription(type: string): string {
   const descriptions: Record<string, string> = {
-    'pass.installed': 'El pase fue instalado en el dispositivo del usuario',
-    'pass.uninstalled': 'El pase fue eliminado del dispositivo del usuario',
+    'pass.created': 'Se creó un nuevo pase',
     'pass.updated': 'El pase fue actualizado',
-    'pass.scanned': 'El pase fue escaneado (QR/barcode)',
-    'pass.redeemed': 'El pase fue canjeado',
-    'pass.voided': 'El pase fue anulado',
-    'pass.expired': 'El pase ha expirado',
-    'pass.registered': 'El dispositivo se registró para recibir push notifications del pase',
-    'pass.unregistered': 'El dispositivo se desregistró del pase',
-    'webhook.verify': 'Verificación de webhook',
+    'pass.downloaded': 'El pase fue descargado al dispositivo del usuario',
+    'registration.created': 'El dispositivo se registró para recibir push notifications del pase',
+    'registration.deleted': 'El dispositivo se desregistró del pase',
+    'scan.performed': 'El pase fue escaneado (QR/barcode)',
   };
   return descriptions[type] || `Evento: ${type}`;
 }
