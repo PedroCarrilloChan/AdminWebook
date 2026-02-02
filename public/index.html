@@ -3,139 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartWebhooks - Plataforma de Gestión</title>
+    <title>SmartWebhooks - Plataforma Multi-Servicio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { 
-            font-family: 'Inter', sans-serif; 
+        body {
+            font-family: 'Inter', sans-serif;
             background: linear-gradient(135deg, #0c1a2e 0%, #1a2332 25%, #2a3441 50%, #1a2332 75%, #0c1a2e 100%);
             min-height: 100vh;
             position: relative;
             overflow-x: hidden;
         }
+        .stars { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+        .star { position: absolute; width: 2px; height: 2px; background: white; border-radius: 50%; animation: twinkle 3s infinite; }
+        @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
 
-        /* Efecto de estrellas animadas */
-        .stars {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 0;
-        }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37); }
+        .glass-card { background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.4); }
+        .gradient-text { background: linear-gradient(135deg, #60A5FA, #34D399, #3B82F6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
-        .star {
-            position: absolute;
-            width: 2px;
-            height: 2px;
-            background: white;
-            border-radius: 50%;
-            animation: twinkle 3s infinite;
-        }
+        .toast { visibility: hidden; min-width: 250px; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); color: #fff; text-align: center; border-radius: 12px; padding: 16px; position: fixed; z-index: 1000; left: 50%; transform: translateX(-50%); bottom: 30px; opacity: 0; transition: opacity 0.5s, visibility 0.5s, bottom 0.5s; border: 1px solid rgba(255, 255, 255, 0.1); }
+        .toast.show { visibility: visible; opacity: 1; bottom: 50px; }
 
-        @keyframes twinkle {
-            0%, 100% { opacity: 0.3; }
-            50% { opacity: 1; }
-        }
+        .hover-lift { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .hover-lift:hover { transform: translateY(-4px); box-shadow: 0 20px 60px 0 rgba(31, 38, 135, 0.5); }
 
-        /* Efecto Glass */
-        .glass {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        }
+        .btn-glass { background: rgba(96, 165, 250, 0.2); backdrop-filter: blur(10px); border: 1px solid rgba(96, 165, 250, 0.3); transition: all 0.3s ease; }
+        .btn-glass:hover { background: rgba(96, 165, 250, 0.3); border-color: rgba(96, 165, 250, 0.5); box-shadow: 0 8px 32px rgba(96, 165, 250, 0.3); }
+        .btn-success { background: rgba(52, 211, 153, 0.2); border: 1px solid rgba(52, 211, 153, 0.3); }
+        .btn-success:hover { background: rgba(52, 211, 153, 0.3); border-color: rgba(52, 211, 153, 0.5); box-shadow: 0 8px 32px rgba(52, 211, 153, 0.3); }
+        .btn-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.3); border-color: rgba(239, 68, 68, 0.5); box-shadow: 0 8px 32px rgba(239, 68, 68, 0.3); }
 
-        .glass-card {
-            background: rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.4);
-        }
+        .provider-card { cursor: pointer; transition: all 0.3s ease; border: 2px solid transparent; }
+        .provider-card:hover { border-color: rgba(96, 165, 250, 0.5); transform: translateY(-2px); }
+        .provider-card.selected { border-color: rgba(52, 211, 153, 0.8); background: rgba(52, 211, 153, 0.1); }
 
-        /* Gradientes personalizados */
-        .gradient-text {
-            background: linear-gradient(135deg, #60A5FA, #34D399, #3B82F6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
+        .input-field { width: 100%; padding: 10px 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: white; outline: none; transition: all 0.3s; }
+        .input-field:focus { ring: 2px; border-color: rgba(96, 165, 250, 0.6); box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.3); }
+        .input-field::placeholder { color: rgba(156, 163, 175, 0.7); }
+        .input-field option { background: #1a2332; color: white; }
 
-        .toast {
-            visibility: hidden;
-            min-width: 250px;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(10px);
-            color: #fff;
-            text-align: center;
-            border-radius: 12px;
-            padding: 16px;
-            position: fixed;
-            z-index: 1000;
-            left: 50%;
-            transform: translateX(-50%);
-            bottom: 30px;
-            opacity: 0;
-            transition: opacity 0.5s, visibility 0.5s, bottom 0.5s;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .toast.show {
-            visibility: visible;
-            opacity: 1;
-            bottom: 50px;
-        }
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
 
-        /* Animaciones de hover */
-        .hover-lift {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .hover-lift:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 20px 60px 0 rgba(31, 38, 135, 0.5);
-        }
-
-        /* Botones con efecto glass */
-        .btn-glass {
-            background: rgba(96, 165, 250, 0.2);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(96, 165, 250, 0.3);
-            transition: all 0.3s ease;
-        }
-        .btn-glass:hover {
-            background: rgba(96, 165, 250, 0.3);
-            border-color: rgba(96, 165, 250, 0.5);
-            box-shadow: 0 8px 32px rgba(96, 165, 250, 0.3);
-        }
-
-        .btn-success {
-            background: rgba(52, 211, 153, 0.2);
-            border: 1px solid rgba(52, 211, 153, 0.3);
-        }
-        .btn-success:hover {
-            background: rgba(52, 211, 153, 0.3);
-            border-color: rgba(52, 211, 153, 0.5);
-            box-shadow: 0 8px 32px rgba(52, 211, 153, 0.3);
-        }
-
-        .btn-danger {
-            background: rgba(239, 68, 68, 0.2);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-        }
-        .btn-danger:hover {
-            background: rgba(239, 68, 68, 0.3);
-            border-color: rgba(239, 68, 68, 0.5);
-            box-shadow: 0 8px 32px rgba(239, 68, 68, 0.3);
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.3s ease forwards; }
     </style>
 </head>
 <body class="text-white relative">
-    <!-- Estrellas animadas -->
     <div class="stars" id="stars"></div>
 
     <div class="container mx-auto p-4 md:p-8 max-w-7xl relative z-10">
-        <!-- Header con navegación estilo SmartPasses -->
+        <!-- Header -->
         <header class="mb-12">
             <nav class="flex justify-between items-center mb-8 glass rounded-2xl p-4">
                 <div class="flex items-center space-x-2">
@@ -144,70 +63,64 @@
                     </div>
                     <h1 class="text-xl font-bold">Smart<span class="gradient-text">Webhooks</span></h1>
                 </div>
-                <div class="hidden md:flex space-x-6 text-sm">
-                    <a href="#" class="text-gray-300 hover:text-white transition-colors">Servicios</a>
-                    <a href="#" class="text-gray-300 hover:text-white transition-colors">Pricing</a>
-                    <a href="#" class="text-gray-300 hover:text-white transition-colors">Acerca</a>
-                    <a href="#" class="text-gray-300 hover:text-white transition-colors">Contacto</a>
+                <div class="hidden md:flex items-center space-x-3 text-sm text-gray-400">
+                    <span id="statsCount">0</span> webhooks configurados
                 </div>
                 <button class="btn-glass text-white px-4 py-2 rounded-lg text-sm font-medium">
                     Panel Admin
                 </button>
             </nav>
 
-            <!-- Hero Section -->
             <div class="text-center">
-                <h1 class="text-5xl md:text-6xl font-bold mb-6 leading-tight">
-                    El futuro de <span class="gradient-text">Webhook Management</span> está en tu bolsillo 🚀
+                <h1 class="text-4xl md:text-5xl font-bold mb-4 leading-tight">
+                    Gestiona webhooks <span class="gradient-text">multi-plataforma</span>
                 </h1>
-                <p class="text-xl text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
-                    Crea, distribuye y gestiona webhooks dinámicos para Apple Wallet y Google Wallet. 
-                    Conecta con tus clientes de forma directa, personal y moderna.
+                <p class="text-lg text-gray-300 mb-6 max-w-2xl mx-auto">
+                    Conecta con ChatbotBuilder, Zapier, Make, Slack, n8n, WhatsApp y cualquier servicio HTTP.
                 </p>
-                <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                    <button class="btn-success text-white px-8 py-3 rounded-xl font-semibold">
-                        Comenzar Gratis
-                    </button>
-                    <button class="btn-glass text-white px-8 py-3 rounded-xl font-semibold">
-                        Ver Demo
-                    </button>
-                </div>
             </div>
         </header>
 
-
-
         <!-- Main Dashboard -->
         <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Columna del Formulario -->
+            <!-- Formulario -->
             <div class="lg:col-span-1">
                 <div class="glass-card rounded-2xl p-6 hover-lift">
-                    <h2 id="formTitle" class="text-2xl font-bold mb-6 gradient-text">Nueva Conexión</h2>
+                    <h2 id="formTitle" class="text-2xl font-bold mb-6 gradient-text">Nueva Conexion</h2>
                     <form id="webhookForm" class="space-y-5">
+                        <!-- Nombre del negocio -->
                         <div>
-                            <label for="businessName" class="block text-sm font-medium text-gray-300 mb-2">Nombre del Negocio</label>
-                            <input type="text" id="businessName" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent backdrop-blur-sm transition-all">
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Nombre del Negocio</label>
+                            <input type="text" id="businessName" required class="input-field" placeholder="Mi Empresa">
                         </div>
+
+                        <!-- Secret Key -->
                         <div>
-                            <label for="secretKey" class="block text-sm font-medium text-gray-300 mb-2">Secret Key</label>
-                            <input type="password" id="secretKey" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent backdrop-blur-sm transition-all">
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Secret Key</label>
+                            <input type="password" id="secretKey" required class="input-field" placeholder="Clave para verificar firmas HMAC">
                         </div>
+
+                        <!-- Selector de Provider -->
                         <div>
-                            <label for="apiToken" class="block text-sm font-medium text-gray-300 mb-2">API Token (ChatbotBuilder)</label>
-                            <input type="password" id="apiToken" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent backdrop-blur-sm transition-all">
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Plataforma destino</label>
+                            <div id="providerGrid" class="grid grid-cols-2 gap-2 mb-3">
+                                <!-- Se llena dinámicamente -->
+                            </div>
+                            <input type="hidden" id="selectedProvider" value="">
                         </div>
-                        <div>
-                            <label for="customFieldId" class="block text-sm font-medium text-gray-300 mb-2">ID Campo Personalizado (CUF)</label>
-                            <input type="number" id="customFieldId" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent backdrop-blur-sm transition-all">
+
+                        <!-- Campos dinámicos del provider -->
+                        <div id="providerFields" class="space-y-4">
+                            <p class="text-sm text-gray-500 text-center py-4">Selecciona una plataforma para ver sus campos de configuracion.</p>
                         </div>
-                        <div>
-                            <label for="flowId" class="block text-sm font-medium text-gray-300 mb-2">ID del Flujo</label>
-                            <input type="number" id="flowId" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent backdrop-blur-sm transition-all">
-                        </div>
+
+                        <!-- Activo -->
                         <div class="flex items-center space-x-3">
-                             <input type="checkbox" id="isActive" checked class="h-5 w-5 text-blue-400 bg-white/10 border-white/20 rounded focus:ring-blue-400 focus:ring-2">
-                             <label for="isActive" class="text-sm text-gray-300">Webhook Activo</label>
+                            <input type="checkbox" id="isActive" checked class="h-5 w-5 text-blue-400 bg-white/10 border-white/20 rounded focus:ring-blue-400">
+                            <label for="isActive" class="text-sm text-gray-300">Webhook Activo</label>
                         </div>
+
+                        <!-- Botones -->
                         <div class="flex space-x-3 pt-4">
                             <button type="submit" id="submitButton" class="flex-1 btn-success text-white py-3 px-6 rounded-xl font-semibold transition-all">
                                 Crear Webhook
@@ -220,7 +133,7 @@
                 </div>
             </div>
 
-            <!-- Columna de la Lista -->
+            <!-- Lista de webhooks -->
             <div class="lg:col-span-2">
                 <div class="glass-card rounded-2xl p-6 hover-lift">
                     <div class="flex justify-between items-center mb-6">
@@ -231,7 +144,6 @@
                         </div>
                     </div>
                     <div id="webhookList" class="space-y-4">
-                        <!-- Las conexiones se insertarán aquí dinámicamente -->
                         <div id="loadingMessage" class="text-center py-8">
                             <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
                             <p class="text-gray-400 mt-3">Cargando webhooks...</p>
@@ -242,20 +154,19 @@
         </main>
     </div>
 
-    <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
 
 <script>
-    // Generar estrellas animadas
+    // --- Estrellas ---
     function createStars() {
-        const starsContainer = document.getElementById('stars');
-        for (let i = 0; i < 100; i++) {
-            const star = document.createElement('div');
-            star.className = 'star';
-            star.style.left = Math.random() * 100 + '%';
-            star.style.top = Math.random() * 100 + '%';
-            star.style.animationDelay = Math.random() * 3 + 's';
-            starsContainer.appendChild(star);
+        const c = document.getElementById('stars');
+        for (let i = 0; i < 80; i++) {
+            const s = document.createElement('div');
+            s.className = 'star';
+            s.style.left = Math.random() * 100 + '%';
+            s.style.top = Math.random() * 100 + '%';
+            s.style.animationDelay = Math.random() * 3 + 's';
+            c.appendChild(s);
         }
     }
 
@@ -267,258 +178,378 @@
         const submitButton = document.getElementById('submitButton');
         const cancelButton = document.getElementById('cancelButton');
         const formTitle = document.getElementById('formTitle');
-        const loadingMessage = document.getElementById('loadingMessage');
         const toast = document.getElementById('toast');
+        const providerGrid = document.getElementById('providerGrid');
+        const providerFieldsContainer = document.getElementById('providerFields');
+        const selectedProviderInput = document.getElementById('selectedProvider');
+        const statsCount = document.getElementById('statsCount');
 
-        let editingWebhookId = null; // Variable para rastrear si estamos editando
+        let editingWebhookId = null;
+        let providers = [];
 
-        // --- FUNCIONES DE LA API ---
+        const API_BASE = '/admin/webhooks';
+        const PROVIDERS_URL = '/admin/providers';
 
-        const API_BASE_URL = '/admin/webhooks';
+        // --- PROVIDERS ---
 
-        // Carga los webhooks desde el backend
-        async function loadWebhooks() {
+        async function loadProviders() {
             try {
-                const response = await fetch(API_BASE_URL);
-                if (!response.ok) throw new Error('Error al cargar los datos.');
-                const webhooks = await response.json();
-                renderWebhooks(webhooks);
-            } catch (error) {
-                console.error(error);
-                webhookList.innerHTML = `<div class="text-center py-8"><p class="text-red-400">No se pudieron cargar las configuraciones.</p></div>`;
+                const resp = await fetch(PROVIDERS_URL);
+                if (!resp.ok) throw new Error('Error cargando providers');
+                providers = await resp.json();
+                renderProviderGrid();
+            } catch (e) {
+                console.error(e);
+                providerGrid.innerHTML = '<p class="text-red-400 text-sm col-span-2">Error cargando plataformas.</p>';
             }
         }
 
-        // Crea un nuevo webhook
-        async function createWebhook(webhookData) {
+        function renderProviderGrid() {
+            providerGrid.innerHTML = '';
+            providers.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'provider-card glass rounded-xl p-3 text-center';
+                card.dataset.provider = p.name;
+                card.innerHTML = `
+                    <div class="text-2xl mb-1">${p.icon}</div>
+                    <div class="text-xs font-semibold text-white">${p.label}</div>
+                `;
+                card.addEventListener('click', () => selectProvider(p.name));
+                providerGrid.appendChild(card);
+            });
+        }
+
+        function selectProvider(name) {
+            selectedProviderInput.value = name;
+            // Highlight
+            document.querySelectorAll('.provider-card').forEach(c => {
+                c.classList.toggle('selected', c.dataset.provider === name);
+            });
+            // Render fields
+            const provider = providers.find(p => p.name === name);
+            if (!provider) return;
+            renderProviderFields(provider);
+        }
+
+        function renderProviderFields(provider) {
+            providerFieldsContainer.innerHTML = '';
+
+            // Description
+            const desc = document.createElement('p');
+            desc.className = 'text-xs text-gray-400 mb-3 fade-in';
+            desc.textContent = provider.description;
+            providerFieldsContainer.appendChild(desc);
+
+            provider.configSchema.forEach(field => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'fade-in';
+
+                const label = document.createElement('label');
+                label.className = 'block text-sm font-medium text-gray-300 mb-1';
+                label.textContent = field.label + (field.required ? ' *' : '');
+                wrapper.appendChild(label);
+
+                let input;
+                if (field.type === 'textarea') {
+                    input = document.createElement('textarea');
+                    input.rows = 3;
+                } else if (field.type === 'select') {
+                    input = document.createElement('select');
+                    (field.options || []).forEach(opt => {
+                        const o = document.createElement('option');
+                        o.value = opt.value;
+                        o.textContent = opt.label;
+                        input.appendChild(o);
+                    });
+                } else {
+                    input = document.createElement('input');
+                    input.type = field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : 'text';
+                }
+
+                input.className = 'input-field';
+                input.id = 'pf_' + field.key;
+                input.name = field.key;
+                if (field.placeholder) input.placeholder = field.placeholder;
+                if (field.required) input.required = true;
+
+                wrapper.appendChild(input);
+                providerFieldsContainer.appendChild(wrapper);
+            });
+        }
+
+        function getProviderConfigFromForm() {
+            const providerName = selectedProviderInput.value;
+            const provider = providers.find(p => p.name === providerName);
+            if (!provider) return {};
+            const config = {};
+            provider.configSchema.forEach(field => {
+                const el = document.getElementById('pf_' + field.key);
+                if (el) config[field.key] = el.value;
+            });
+            return config;
+        }
+
+        function fillProviderFields(providerConfig) {
+            if (!providerConfig) return;
+            Object.entries(providerConfig).forEach(([key, value]) => {
+                const el = document.getElementById('pf_' + key);
+                if (el) el.value = value;
+            });
+        }
+
+        // --- CRUD ---
+
+        async function loadWebhooks() {
+            try {
+                const resp = await fetch(API_BASE);
+                if (!resp.ok) throw new Error('Error');
+                const webhooks = await resp.json();
+                statsCount.textContent = webhooks.length;
+                renderWebhooks(webhooks);
+            } catch (e) {
+                console.error(e);
+                webhookList.innerHTML = '<div class="text-center py-8"><p class="text-red-400">No se pudieron cargar las configuraciones.</p></div>';
+            }
+        }
+
+        async function createWebhook(data) {
             submitButton.disabled = true;
             submitButton.innerHTML = '<div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Creando...';
             try {
-                const response = await fetch(API_BASE_URL, {
+                const resp = await fetch(API_BASE, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(webhookData)
+                    body: JSON.stringify(data)
                 });
-                if (!response.ok) throw new Error('Error al crear el webhook.');
-
-                showToast('🎉 Webhook creado con éxito!');
+                if (!resp.ok) throw new Error('Error');
+                showToast('Webhook creado con exito!');
                 resetForm();
-                loadWebhooks(); // Recargar la lista
-            } catch (error) {
-                console.error(error);
-                showToast('❌ Error al crear el webhook.', true);
+                loadWebhooks();
+            } catch (e) {
+                showToast('Error al crear el webhook.', true);
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = 'Crear Webhook';
             }
         }
 
-        // Actualiza un webhook existente
-        async function updateWebhook(webhookId, webhookData) {
+        async function updateWebhook(id, data) {
             submitButton.disabled = true;
             submitButton.innerHTML = '<div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Actualizando...';
             try {
-                const response = await fetch(`${API_BASE_URL}/${webhookId}`, {
+                const resp = await fetch(`${API_BASE}/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(webhookData)
+                    body: JSON.stringify(data)
                 });
-                if (!response.ok) throw new Error('Error al actualizar el webhook.');
-
-                showToast('✅ Webhook actualizado con éxito!');
+                if (!resp.ok) throw new Error('Error');
+                showToast('Webhook actualizado!');
                 resetForm();
-                loadWebhooks(); // Recargar la lista
-            } catch (error) {
-                console.error(error);
-                showToast('❌ Error al actualizar el webhook.', true);
+                loadWebhooks();
+            } catch (e) {
+                showToast('Error al actualizar.', true);
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = 'Crear Webhook';
             }
         }
 
-        // Elimina un webhook
-        async function deleteWebhook(webhookId) {
-            if (!confirm('¿Estás seguro de que quieres eliminar este webhook?')) return;
+        async function deleteWebhook(id) {
+            if (!confirm('Eliminar este webhook?')) return;
             try {
-                const response = await fetch(`${API_BASE_URL}/${webhookId}`, {
-                    method: 'DELETE'
-                });
-                if (!response.ok) throw new Error('Error al eliminar el webhook.');
-
-                showToast('🗑️ Webhook eliminado correctamente.');
-                loadWebhooks(); // Recargar la lista
-            } catch (error) {
-                console.error(error);
-                showToast('❌ Error al eliminar el webhook.', true);
+                const resp = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+                if (!resp.ok) throw new Error('Error');
+                showToast('Webhook eliminado.');
+                loadWebhooks();
+            } catch (e) {
+                showToast('Error al eliminar.', true);
             }
         }
 
-        // Función para editar un webhook
-        async function editWebhook(webhookId) {
+        async function editWebhook(id) {
             try {
-                // Obtener todos los webhooks y encontrar el que queremos editar
-                const response = await fetch(API_BASE_URL);
-                if (!response.ok) throw new Error('Error al obtener webhook.');
+                const resp = await fetch(API_BASE);
+                if (!resp.ok) throw new Error('Error');
+                const webhooks = await resp.json();
+                const wh = webhooks.find(w => w.id === id);
+                if (!wh) { showToast('Webhook no encontrado.', true); return; }
 
-                const webhooks = await response.json();
-                const webhook = webhooks.find(w => w.id === webhookId);
+                document.getElementById('businessName').value = wh.businessName;
+                document.getElementById('isActive').checked = wh.isActive;
+                document.getElementById('secretKey').required = false;
+                document.getElementById('secretKey').placeholder = 'Dejar vacio para no cambiar';
 
-                if (!webhook) {
-                    showToast('❌ Webhook no encontrado.', true);
-                    return;
-                }
+                selectProvider(wh.provider);
 
-                // Llenar el formulario con los datos existentes
-                document.getElementById('businessName').value = webhook.businessName;
-                document.getElementById('customFieldId').value = webhook.customFieldId;
-                document.getElementById('flowId').value = webhook.flowId;
-                document.getElementById('isActive').checked = webhook.isActive;
+                // Wait a tick for fields to render
+                setTimeout(() => fillProviderFields(wh.providerConfig), 50);
 
-                // Cambiar el modo del formulario a edición
-                editingWebhookId = webhookId;
-                formTitle.innerHTML = '✏️ Editar Conexión';
+                editingWebhookId = id;
+                formTitle.textContent = 'Editar Conexion';
                 submitButton.textContent = 'Actualizar Webhook';
                 submitButton.className = 'flex-1 btn-glass text-white py-3 px-6 rounded-xl font-semibold transition-all';
                 cancelButton.classList.remove('hidden');
 
-            } catch (error) {
-                console.error(error);
-                showToast('❌ Error al cargar el webhook para editar.', true);
+                // Scroll to form on mobile
+                document.getElementById('webhookForm').scrollIntoView({ behavior: 'smooth' });
+            } catch (e) {
+                showToast('Error al cargar webhook.', true);
             }
         }
 
-        // Función para resetear el formulario
         function resetForm() {
             webhookForm.reset();
             editingWebhookId = null;
-            formTitle.innerHTML = '✨ Nueva Conexión';
+            selectedProviderInput.value = '';
+            document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('selected'));
+            providerFieldsContainer.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">Selecciona una plataforma para ver sus campos de configuracion.</p>';
+            formTitle.textContent = 'Nueva Conexion';
             submitButton.textContent = 'Crear Webhook';
             submitButton.className = 'flex-1 btn-success text-white py-3 px-6 rounded-xl font-semibold transition-all';
             cancelButton.classList.add('hidden');
+            document.getElementById('secretKey').required = true;
+            document.getElementById('secretKey').placeholder = 'Clave para verificar firmas HMAC';
         }
 
-        // --- FUNCIONES DE RENDERIZADO ---
+        // --- RENDER ---
 
-        // Muestra y oculta el toast de notificación
+        function getProviderInfo(name) {
+            return providers.find(p => p.name === name) || { icon: '?', label: name, name };
+        }
+
         function showToast(message, isError = false) {
             toast.textContent = message;
             toast.className = `toast show ${isError ? 'bg-red-600/80' : 'bg-gray-800/80'}`;
-            setTimeout(() => {
-                toast.className = toast.className.replace("show", "");
-            }, 3000);
+            setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 3000);
         }
 
-        // Dibuja la lista de webhooks en el DOM
         function renderWebhooks(webhooks) {
-            webhookList.innerHTML = ''; // Limpiar la lista
+            webhookList.innerHTML = '';
             if (webhooks.length === 0) {
                 webhookList.innerHTML = `
                     <div class="text-center py-12">
                         <div class="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                             <span class="text-2xl">🔗</span>
                         </div>
-                        <p class="text-gray-400">No hay webhooks configurados todavía.</p>
-                        <p class="text-gray-500 text-sm mt-2">Crea tu primera conexión para comenzar.</p>
-                    </div>
-                `;
+                        <p class="text-gray-400">No hay webhooks configurados todavia.</p>
+                        <p class="text-gray-500 text-sm mt-2">Crea tu primera conexion para comenzar.</p>
+                    </div>`;
                 return;
             }
 
-            webhooks.forEach((webhook, index) => {
-                const fullUrl = `${window.location.origin}/api/v1/webhook/${webhook.id}`;
-                const element = document.createElement('div');
-                element.className = 'glass rounded-xl p-5 hover-lift transition-all duration-300';
-                element.innerHTML = `
+            webhooks.forEach(wh => {
+                const fullUrl = `${window.location.origin}/api/v1/webhook/${wh.id}`;
+                const prov = getProviderInfo(wh.provider);
+                const el = document.createElement('div');
+                el.className = 'glass rounded-xl p-5 hover-lift transition-all duration-300 fade-in';
+                el.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div class="flex-1">
                             <div class="flex items-center space-x-3 mb-3">
-                                <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-green-400 rounded-lg flex items-center justify-center">
-                                    <span class="text-white font-bold text-sm">${webhook.businessName.charAt(0).toUpperCase()}</span>
+                                <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-green-400 rounded-lg flex items-center justify-center text-xl">
+                                    ${prov.icon}
                                 </div>
                                 <div>
-                                    <h3 class="font-bold text-lg text-white">${webhook.businessName}</h3>
-                                    <p class="text-sm text-gray-400">Flujo ID: ${webhook.flowId}</p>
+                                    <h3 class="font-bold text-lg text-white">${wh.businessName}</h3>
+                                    <span class="badge bg-blue-400/20 text-blue-300 border border-blue-400/30">${prov.label}</span>
                                 </div>
                             </div>
+                            ${renderProviderSummary(wh)}
                             <div class="mt-3">
                                 <label class="block text-xs text-gray-400 mb-1">Webhook URL:</label>
                                 <div class="flex items-center">
                                     <input type="text" readonly value="${fullUrl}" class="flex-1 text-xs p-2 bg-white/5 border border-white/10 rounded-l-lg text-gray-300 font-mono">
                                     <button onclick="copyToClipboard('${fullUrl}', this)" class="bg-white/10 hover:bg-white/20 text-gray-300 text-xs p-2 border border-l-0 border-white/10 rounded-r-lg transition-all">
-                                        📋
+                                        Copiar
                                     </button>
                                 </div>
                             </div>
                         </div>
                         <div class="flex flex-col items-end space-y-3 ml-4">
-                            <span class="px-3 py-1 text-xs font-semibold rounded-full ${webhook.isActive ? 'bg-green-400/20 text-green-300 border border-green-400/30' : 'bg-red-400/20 text-red-300 border border-red-400/30'}">
-                                ${webhook.isActive ? '🟢 Activo' : '🔴 Inactivo'}
+                            <span class="badge ${wh.isActive ? 'bg-green-400/20 text-green-300 border border-green-400/30' : 'bg-red-400/20 text-red-300 border border-red-400/30'}">
+                                ${wh.isActive ? 'Activo' : 'Inactivo'}
                             </span>
-                             <div class="flex space-x-2">
-                                <button onclick="editWebhook('${webhook.id}')" class="btn-glass text-blue-300 hover:text-white px-3 py-1 rounded-lg text-sm font-medium transition-all">
-                                    ✏️ Editar
+                            <div class="flex space-x-2">
+                                <button onclick="editWebhook('${wh.id}')" class="btn-glass text-blue-300 hover:text-white px-3 py-1 rounded-lg text-sm font-medium transition-all">
+                                    Editar
                                 </button>
-                                <button onclick="deleteWebhook('${webhook.id}')" class="btn-danger text-red-300 hover:text-white px-3 py-1 rounded-lg text-sm font-medium transition-all">
-                                    🗑️
+                                <button onclick="deleteWebhook('${wh.id}')" class="btn-danger text-red-300 hover:text-white px-3 py-1 rounded-lg text-sm font-medium transition-all">
+                                    Eliminar
                                 </button>
                             </div>
                         </div>
-                    </div>
-                `;
-                webhookList.appendChild(element);
+                    </div>`;
+                webhookList.appendChild(el);
             });
         }
 
-        // Función para copiar al portapapeles
-        window.copyToClipboard = (text, button) => {
+        function renderProviderSummary(wh) {
+            const pc = wh.providerConfig || {};
+            switch (wh.provider) {
+                case 'chatbotbuilder':
+                    return `<p class="text-xs text-gray-400 mt-1">CUF: ${pc.customFieldId || '—'} | Flujo: ${pc.flowId || '—'}</p>`;
+                case 'custom_http':
+                    return `<p class="text-xs text-gray-400 mt-1">${pc.method || 'POST'} → ${pc.url ? pc.url.substring(0, 50) + '...' : '—'}</p>`;
+                case 'zapier':
+                    return `<p class="text-xs text-gray-400 mt-1">URL: ${pc.zapUrl ? pc.zapUrl.substring(0, 50) + '...' : '—'}</p>`;
+                case 'make':
+                case 'n8n':
+                    return `<p class="text-xs text-gray-400 mt-1">URL: ${pc.webhookUrl ? pc.webhookUrl.substring(0, 50) + '...' : '—'}</p>`;
+                case 'slack':
+                    return `<p class="text-xs text-gray-400 mt-1">Slack Webhook configurado</p>`;
+                case 'whatsapp':
+                    return `<p class="text-xs text-gray-400 mt-1">Tel: ${pc.recipientPhone || '—'} | Template: ${pc.templateName || '—'}</p>`;
+                default:
+                    return '';
+            }
+        }
+
+        window.copyToClipboard = (text, btn) => {
             navigator.clipboard.writeText(text).then(() => {
-                const originalText = button.innerHTML;
-                button.innerHTML = '✅';
-                button.classList.add('bg-green-400/20', 'text-green-300');
+                const orig = btn.textContent;
+                btn.textContent = 'Copiado!';
+                btn.classList.add('bg-green-400/20', 'text-green-300');
                 setTimeout(() => {
-                    button.innerHTML = originalText;
-                    button.classList.remove('bg-green-400/20', 'text-green-300');
+                    btn.textContent = orig;
+                    btn.classList.remove('bg-green-400/20', 'text-green-300');
                 }, 2000);
-            }).catch(err => {
-                console.error('Error al copiar:', err);
-                showToast('❌ No se pudo copiar la URL.', true);
-            });
-        }
+            }).catch(() => showToast('No se pudo copiar.', true));
+        };
 
-        // --- EVENT LISTENERS ---
+        // --- EVENTS ---
 
         webhookForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            const webhookData = {
+            const provider = selectedProviderInput.value;
+            if (!provider) {
+                showToast('Selecciona una plataforma destino.', true);
+                return;
+            }
+
+            const data = {
                 businessName: document.getElementById('businessName').value,
                 secretKey: document.getElementById('secretKey').value,
-                apiToken: document.getElementById('apiToken').value,
-                customFieldId: document.getElementById('customFieldId').value,
-                flowId: document.getElementById('flowId').value,
+                provider: provider,
+                providerConfig: getProviderConfigFromForm(),
                 isActive: document.getElementById('isActive').checked
             };
 
             if (editingWebhookId) {
-                updateWebhook(editingWebhookId, webhookData);
+                updateWebhook(editingWebhookId, data);
             } else {
-                createWebhook(webhookData);
+                createWebhook(data);
             }
         });
 
-        // Event listener para el botón cancelar
-        cancelButton.addEventListener('click', () => {
-            resetForm();
-        });
+        cancelButton.addEventListener('click', resetForm);
 
-        // Hacemos las funciones accesibles globalmente para los botones
         window.deleteWebhook = deleteWebhook;
         window.editWebhook = editWebhook;
 
-        // Carga inicial de datos
+        // Init
+        loadProviders();
         loadWebhooks();
     });
 </script>
-
 </body>
 </html>

@@ -26,8 +26,11 @@ export async function onRequestGet(context: any): Promise<Response> {
       return {
         id: docSnapshot.id,
         businessName: data.businessName,
-        customFieldId: data.customFieldId,
-        flowId: data.flowId,
+        provider: data.provider || 'chatbotbuilder',
+        providerConfig: data.providerConfig || {
+          customFieldId: data.customFieldId,
+          flowId: data.flowId,
+        },
         isActive: data.isActive
       };
     });
@@ -47,15 +50,24 @@ export async function onRequestPost(context: any): Promise<Response> {
   try {
     const db = getDb(context.env);
     const webhooksCollection = collection(db, 'webhooks');
-    const newWebhook = await context.request.json();
+    const body = await context.request.json();
 
-    if (!newWebhook.businessName || !newWebhook.secretKey || !newWebhook.apiToken) {
-      return new Response("Faltan campos requeridos.", { status: 400 });
+    if (!body.businessName || !body.secretKey || !body.provider) {
+      return new Response("Faltan campos requeridos (businessName, secretKey, provider).", { status: 400 });
     }
 
-    const docRef = await addDoc(webhooksCollection, newWebhook);
+    const webhookData = {
+      businessName: body.businessName,
+      secretKey: body.secretKey,
+      provider: body.provider,
+      providerConfig: body.providerConfig || {},
+      isActive: body.isActive !== undefined ? body.isActive : true,
+      createdAt: new Date().toISOString(),
+    };
 
-    return new Response(JSON.stringify({ id: docRef.id, ...newWebhook }), {
+    const docRef = await addDoc(webhooksCollection, webhookData);
+
+    return new Response(JSON.stringify({ id: docRef.id, ...webhookData, secretKey: undefined }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -72,10 +84,10 @@ export async function onRequestPut(context: any): Promise<Response> {
     const url = new URL(context.request.url);
     const pathParts = url.pathname.split('/');
     const id = pathParts[pathParts.length - 1];
-    const updatedData = await context.request.json();
+    const body = await context.request.json();
 
-    if (!updatedData.businessName || !updatedData.secretKey || !updatedData.apiToken) {
-      return new Response("Faltan campos requeridos.", { status: 400 });
+    if (!body.businessName || !body.provider) {
+      return new Response("Faltan campos requeridos (businessName, provider).", { status: 400 });
     }
 
     const webhookDocRef = doc(db, 'webhooks', id);
@@ -85,9 +97,21 @@ export async function onRequestPut(context: any): Promise<Response> {
       return new Response("Webhook no encontrado.", { status: 404 });
     }
 
-    await updateDoc(webhookDocRef, updatedData);
+    const updateData: any = {
+      businessName: body.businessName,
+      provider: body.provider,
+      providerConfig: body.providerConfig || {},
+      isActive: body.isActive !== undefined ? body.isActive : true,
+    };
 
-    return new Response(JSON.stringify({ id, ...updatedData }), {
+    // Solo actualizar secretKey si se envía (permite no cambiarla)
+    if (body.secretKey) {
+      updateData.secretKey = body.secretKey;
+    }
+
+    await updateDoc(webhookDocRef, updateData);
+
+    return new Response(JSON.stringify({ id, ...updateData, secretKey: undefined }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
