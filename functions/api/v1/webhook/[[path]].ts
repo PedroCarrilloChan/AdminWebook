@@ -84,7 +84,14 @@ export async function onRequestPost(context: any): Promise<Response> {
 
     console.log(`[${config.businessName}] Evento "${type}" → provider "${providerName}"`);
 
-    const result = await provider.execute(eventData, providerConfig);
+    // Metadata enriquecida para que el provider tenga contexto completo
+    const metadata = {
+      webhookId,
+      businessName: config.businessName,
+      receivedAt: new Date().toISOString(),
+    };
+
+    const result = await provider.execute(eventData, providerConfig, metadata);
 
     if (!result.success) {
       console.error(`[${config.businessName}] Provider error: ${result.message}`);
