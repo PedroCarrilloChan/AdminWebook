@@ -1,39 +1,26 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getProvider } from '../../../providers/index';
 
-function getDb(env: any) {
-  if (getApps().length === 0) {
-    initializeApp({
-      apiKey: env.FIREBASE_API_KEY,
-      authDomain: env.FIREBASE_AUTH_DOMAIN,
-      projectId: env.FIREBASE_PROJECT_ID,
-      storageBucket: env.FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: env.FIREBASE_MESSAGING_SENDER_ID,
-      appId: env.FIREBASE_APP_ID
-    });
-  }
-  return getFirestore();
+interface Env {
+  WEBHOOKS_KV: KVNamespace;
 }
 
-export async function onRequestPost(context: any): Promise<Response> {
+export async function onRequestPost(context: { request: Request; env: Env }): Promise<Response> {
   const { request, env } = context;
   const url = new URL(request.url);
   const pathParts = url.pathname.split('/');
   const webhookId = pathParts[pathParts.length - 1];
 
   try {
-    const db = getDb(env);
+    const kv = env.WEBHOOKS_KV;
 
-    const webhookDocRef = doc(db, 'webhooks', webhookId);
-    const webhookDocSnap = await getDoc(webhookDocRef);
-
-    if (!webhookDocSnap.exists()) {
+    // Obtener configuración del webhook desde KV
+    const raw = await kv.get(`webhook:${webhookId}`);
+    if (!raw) {
       console.error(`Configuración no encontrada para el webhookId: ${webhookId}`);
       return new Response('Configuración de Webhook no encontrada.', { status: 404 });
     }
 
-    const config = webhookDocSnap.data();
+    const config = JSON.parse(raw);
 
     const bodyText = await request.text();
     const eventData = JSON.parse(bodyText);
@@ -43,7 +30,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     if (type === 'webhook.verify') {
       return new Response(JSON.stringify({ token: data.token }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -84,7 +71,6 @@ export async function onRequestPost(context: any): Promise<Response> {
 
     console.log(`[${config.businessName}] Evento "${type}" → provider "${providerName}"`);
 
-    // Metadata enriquecida para que el provider tenga contexto completo
     const metadata = {
       webhookId,
       businessName: config.businessName,
@@ -101,7 +87,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     console.log(`[${config.businessName}] OK: ${result.message}`);
     return new Response(JSON.stringify(result), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
 
   } catch (error: any) {

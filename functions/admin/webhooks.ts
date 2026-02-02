@@ -1,61 +1,71 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, addDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+// CRUD de webhooks usando Cloudflare KV
+// KV structure: key = "webhook:{id}", value = JSON string of webhook data
+// Index key: "webhooks:index" = JSON array of webhook IDs
 
-function getDb(env: any) {
-  if (getApps().length === 0) {
-    initializeApp({
-      apiKey: env.FIREBASE_API_KEY,
-      authDomain: env.FIREBASE_AUTH_DOMAIN,
-      projectId: env.FIREBASE_PROJECT_ID,
-      storageBucket: env.FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: env.FIREBASE_MESSAGING_SENDER_ID,
-      appId: env.FIREBASE_APP_ID
-    });
+interface Env {
+  WEBHOOKS_KV: KVNamespace;
+}
+
+function generateId(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let id = '';
+  for (let i = 0; i < 20; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return getFirestore();
+  return id;
+}
+
+async function getIndex(kv: KVNamespace): Promise<string[]> {
+  const raw = await kv.get('webhooks:index');
+  return raw ? JSON.parse(raw) : [];
+}
+
+async function saveIndex(kv: KVNamespace, index: string[]): Promise<void> {
+  await kv.put('webhooks:index', JSON.stringify(index));
 }
 
 // GET: Obtener todas las configuraciones de webhooks
-export async function onRequestGet(context: any): Promise<Response> {
+export async function onRequestGet(context: { env: Env }): Promise<Response> {
   try {
-    const db = getDb(context.env);
-    const webhooksCollection = collection(db, 'webhooks');
-    const snapshot = await getDocs(webhooksCollection);
-    const webhooks = snapshot.docs.map(docSnapshot => {
-      const data = docSnapshot.data();
-      return {
-        id: docSnapshot.id,
-        businessName: data.businessName,
-        provider: data.provider || 'chatbotbuilder',
-        providerConfig: data.providerConfig || {
-          customFieldId: data.customFieldId,
-          flowId: data.flowId,
-        },
-        isActive: data.isActive
-      };
-    });
+    const kv = context.env.WEBHOOKS_KV;
+    const index = await getIndex(kv);
+
+    const webhooks = [];
+    for (const id of index) {
+      const raw = await kv.get(`webhook:${id}`);
+      if (raw) {
+        const data = JSON.parse(raw);
+        webhooks.push({
+          id,
+          businessName: data.businessName,
+          provider: data.provider || 'chatbotbuilder',
+          providerConfig: data.providerConfig || {},
+          isActive: data.isActive,
+        });
+      }
+    }
 
     return new Response(JSON.stringify(webhooks), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
-  } catch (error) {
-    console.error("Error al obtener webhooks:", error);
-    return new Response("Error al obtener las configuraciones.", { status: 500 });
+  } catch (error: any) {
+    console.error('Error al obtener webhooks:', error.message);
+    return new Response('Error al obtener las configuraciones.', { status: 500 });
   }
 }
 
 // POST: Crear una nueva configuración de webhook
-export async function onRequestPost(context: any): Promise<Response> {
+export async function onRequestPost(context: { env: Env; request: Request }): Promise<Response> {
   try {
-    const db = getDb(context.env);
-    const webhooksCollection = collection(db, 'webhooks');
-    const body = await context.request.json();
+    const kv = context.env.WEBHOOKS_KV;
+    const body = await context.request.json() as any;
 
     if (!body.businessName || !body.secretKey || !body.provider) {
-      return new Response("Faltan campos requeridos (businessName, secretKey, provider).", { status: 400 });
+      return new Response('Faltan campos requeridos (businessName, secretKey, provider).', { status: 400 });
     }
 
+    const id = generateId();
     const webhookData = {
       businessName: body.businessName,
       secretKey: body.secretKey,
@@ -65,81 +75,90 @@ export async function onRequestPost(context: any): Promise<Response> {
       createdAt: new Date().toISOString(),
     };
 
-    const docRef = await addDoc(webhooksCollection, webhookData);
+    await kv.put(`webhook:${id}`, JSON.stringify(webhookData));
 
-    return new Response(JSON.stringify({ id: docRef.id, ...webhookData, secretKey: undefined }), {
+    // Update index
+    const index = await getIndex(kv);
+    index.push(id);
+    await saveIndex(kv, index);
+
+    return new Response(JSON.stringify({ id, ...webhookData, secretKey: undefined }), {
       status: 201,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
-  } catch (error) {
-    console.error("Error al crear webhook:", error);
-    return new Response("Error al crear la configuración.", { status: 500 });
+  } catch (error: any) {
+    console.error('Error al crear webhook:', error.message);
+    return new Response('Error al crear la configuración.', { status: 500 });
   }
 }
 
 // PUT: Actualizar una configuración de webhook existente
-export async function onRequestPut(context: any): Promise<Response> {
+export async function onRequestPut(context: { env: Env; request: Request }): Promise<Response> {
   try {
-    const db = getDb(context.env);
+    const kv = context.env.WEBHOOKS_KV;
     const url = new URL(context.request.url);
     const pathParts = url.pathname.split('/');
     const id = pathParts[pathParts.length - 1];
-    const body = await context.request.json();
+    const body = await context.request.json() as any;
 
     if (!body.businessName || !body.provider) {
-      return new Response("Faltan campos requeridos (businessName, provider).", { status: 400 });
+      return new Response('Faltan campos requeridos (businessName, provider).', { status: 400 });
     }
 
-    const webhookDocRef = doc(db, 'webhooks', id);
-    const docSnap = await getDoc(webhookDocRef);
-
-    if (!docSnap.exists()) {
-      return new Response("Webhook no encontrado.", { status: 404 });
+    const existing = await kv.get(`webhook:${id}`);
+    if (!existing) {
+      return new Response('Webhook no encontrado.', { status: 404 });
     }
 
-    const updateData: any = {
+    const current = JSON.parse(existing);
+    const updateData = {
+      ...current,
       businessName: body.businessName,
       provider: body.provider,
       providerConfig: body.providerConfig || {},
       isActive: body.isActive !== undefined ? body.isActive : true,
     };
 
-    // Solo actualizar secretKey si se envía (permite no cambiarla)
+    // Solo actualizar secretKey si se envía
     if (body.secretKey) {
       updateData.secretKey = body.secretKey;
     }
 
-    await updateDoc(webhookDocRef, updateData);
+    await kv.put(`webhook:${id}`, JSON.stringify(updateData));
 
     return new Response(JSON.stringify({ id, ...updateData, secretKey: undefined }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
-  } catch (error) {
-    console.error("Error al actualizar webhook:", error);
-    return new Response("Error al actualizar la configuración.", { status: 500 });
+  } catch (error: any) {
+    console.error('Error al actualizar webhook:', error.message);
+    return new Response('Error al actualizar la configuración.', { status: 500 });
   }
 }
 
 // DELETE: Eliminar una configuración de webhook por su ID
-export async function onRequestDelete(context: any): Promise<Response> {
+export async function onRequestDelete(context: { env: Env; request: Request }): Promise<Response> {
   try {
-    const db = getDb(context.env);
+    const kv = context.env.WEBHOOKS_KV;
     const url = new URL(context.request.url);
     const pathParts = url.pathname.split('/');
     const id = pathParts[pathParts.length - 1];
-    const webhookDocRef = doc(db, 'webhooks', id);
 
-    const docSnap = await getDoc(webhookDocRef);
-    if (!docSnap.exists()) {
-      return new Response("Webhook no encontrado.", { status: 404 });
+    const existing = await kv.get(`webhook:${id}`);
+    if (!existing) {
+      return new Response('Webhook no encontrado.', { status: 404 });
     }
 
-    await deleteDoc(webhookDocRef);
+    await kv.delete(`webhook:${id}`);
+
+    // Update index
+    const index = await getIndex(kv);
+    const newIndex = index.filter(i => i !== id);
+    await saveIndex(kv, newIndex);
 
     return new Response(`Webhook ${id} eliminado correctamente.`, { status: 200 });
-  } catch (error) {
-    console.error("Error al eliminar webhook:", error);
-    return new Response("Error al eliminar la configuración.", { status: 500 });
+  } catch (error: any) {
+    console.error('Error al eliminar webhook:', error.message);
+    return new Response('Error al eliminar la configuración.', { status: 500 });
   }
 }
