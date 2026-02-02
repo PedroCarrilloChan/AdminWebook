@@ -1,5 +1,3 @@
-
-import crypto from 'node:crypto';
 import axios from 'axios';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
@@ -57,11 +55,14 @@ export async function onRequestPost(context: any): Promise<Response> {
       return new Response('No signature provided', { status: 401 });
     }
 
-    const hmac = crypto.createHmac('sha1', config.secretKey);
-    hmac.update(bodyText);
-    const digest = `sha1=${hmac.digest('hex')}`;
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw', encoder.encode(config.secretKey), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
+    );
+    const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(bodyText));
+    const digest = `sha1=${Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')}`;
 
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
+    if (signature !== digest) {
       console.error('Invalid signature for webhookId:', webhookId);
       return new Response('Invalid signature', { status: 403 });
     }
