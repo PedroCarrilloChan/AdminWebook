@@ -1,38 +1,40 @@
-
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, addDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
-// Configuración de Firebase (usando variables de entorno)
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY!,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN!,
-  projectId: process.env.FIREBASE_PROJECT_ID!,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET!,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID!,
-  appId: process.env.FIREBASE_APP_ID!
-};
-
-// Inicializar Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const webhooksCollection = collection(db, 'webhooks');
+function getDb(env: any) {
+  if (getApps().length === 0) {
+    initializeApp({
+      apiKey: env.FIREBASE_API_KEY,
+      authDomain: env.FIREBASE_AUTH_DOMAIN,
+      projectId: env.FIREBASE_PROJECT_ID,
+      storageBucket: env.FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: env.FIREBASE_MESSAGING_SENDER_ID,
+      appId: env.FIREBASE_APP_ID
+    });
+  }
+  return getFirestore();
+}
 
 // GET: Obtener todas las configuraciones de webhooks
 export async function onRequestGet(context: any): Promise<Response> {
   try {
+    const db = getDb(context.env);
+    const webhooksCollection = collection(db, 'webhooks');
     const snapshot = await getDocs(webhooksCollection);
     const webhooks = snapshot.docs.map(docSnapshot => {
       const data = docSnapshot.data();
-      // No enviar las claves secretas al frontend por seguridad
       return {
         id: docSnapshot.id,
         businessName: data.businessName,
-        customFieldId: data.customFieldId,
-        flowId: data.flowId,
+        provider: data.provider || 'chatbotbuilder',
+        providerConfig: data.providerConfig || {
+          customFieldId: data.customFieldId,
+          flowId: data.flowId,
+        },
         isActive: data.isActive
       };
     });
-    
+
     return new Response(JSON.stringify(webhooks), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
@@ -46,16 +48,26 @@ export async function onRequestGet(context: any): Promise<Response> {
 // POST: Crear una nueva configuración de webhook
 export async function onRequestPost(context: any): Promise<Response> {
   try {
-    const newWebhook = await context.request.json();
-    
-    // Validación simple
-    if (!newWebhook.businessName || !newWebhook.secretKey || !newWebhook.apiToken) {
-      return new Response("Faltan campos requeridos.", { status: 400 });
+    const db = getDb(context.env);
+    const webhooksCollection = collection(db, 'webhooks');
+    const body = await context.request.json();
+
+    if (!body.businessName || !body.secretKey || !body.provider) {
+      return new Response("Faltan campos requeridos (businessName, secretKey, provider).", { status: 400 });
     }
 
-    const docRef = await addDoc(webhooksCollection, newWebhook);
-    
-    return new Response(JSON.stringify({ id: docRef.id, ...newWebhook }), {
+    const webhookData = {
+      businessName: body.businessName,
+      secretKey: body.secretKey,
+      provider: body.provider,
+      providerConfig: body.providerConfig || {},
+      isActive: body.isActive !== undefined ? body.isActive : true,
+      createdAt: new Date().toISOString(),
+    };
+
+    const docRef = await addDoc(webhooksCollection, webhookData);
+
+    return new Response(JSON.stringify({ id: docRef.id, ...webhookData, secretKey: undefined }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -68,26 +80,38 @@ export async function onRequestPost(context: any): Promise<Response> {
 // PUT: Actualizar una configuración de webhook existente
 export async function onRequestPut(context: any): Promise<Response> {
   try {
+    const db = getDb(context.env);
     const url = new URL(context.request.url);
     const pathParts = url.pathname.split('/');
     const id = pathParts[pathParts.length - 1];
-    const updatedData = await context.request.json();
-    
-    // Validación simple
-    if (!updatedData.businessName || !updatedData.secretKey || !updatedData.apiToken) {
-      return new Response("Faltan campos requeridos.", { status: 400 });
+    const body = await context.request.json();
+
+    if (!body.businessName || !body.provider) {
+      return new Response("Faltan campos requeridos (businessName, provider).", { status: 400 });
     }
 
     const webhookDocRef = doc(db, 'webhooks', id);
     const docSnap = await getDoc(webhookDocRef);
-    
+
     if (!docSnap.exists()) {
       return new Response("Webhook no encontrado.", { status: 404 });
     }
 
-    await updateDoc(webhookDocRef, updatedData);
-    
-    return new Response(JSON.stringify({ id, ...updatedData }), {
+    const updateData: any = {
+      businessName: body.businessName,
+      provider: body.provider,
+      providerConfig: body.providerConfig || {},
+      isActive: body.isActive !== undefined ? body.isActive : true,
+    };
+
+    // Solo actualizar secretKey si se envía (permite no cambiarla)
+    if (body.secretKey) {
+      updateData.secretKey = body.secretKey;
+    }
+
+    await updateDoc(webhookDocRef, updateData);
+
+    return new Response(JSON.stringify({ id, ...updateData, secretKey: undefined }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -100,6 +124,7 @@ export async function onRequestPut(context: any): Promise<Response> {
 // DELETE: Eliminar una configuración de webhook por su ID
 export async function onRequestDelete(context: any): Promise<Response> {
   try {
+    const db = getDb(context.env);
     const url = new URL(context.request.url);
     const pathParts = url.pathname.split('/');
     const id = pathParts[pathParts.length - 1];
@@ -111,7 +136,7 @@ export async function onRequestDelete(context: any): Promise<Response> {
     }
 
     await deleteDoc(webhookDocRef);
-    
+
     return new Response(`Webhook ${id} eliminado correctamente.`, { status: 200 });
   } catch (error) {
     console.error("Error al eliminar webhook:", error);
