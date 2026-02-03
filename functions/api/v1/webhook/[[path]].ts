@@ -17,7 +17,7 @@ async function logEvent(kv: KVNamespace, webhookId: string, entry: any): Promise
 export async function onRequestPost(context: { request: Request; env: Env }): Promise<Response> {
   const { request, env } = context;
   const url = new URL(request.url);
-  const pathParts = url.pathname.split('/');
+  const pathParts = url.pathname.replace(/\/+$/, '').split('/');
   const webhookId = pathParts[pathParts.length - 1];
   const now = new Date().toISOString();
 
@@ -36,16 +36,19 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     const { type, data } = eventData;
 
     // Verificación de webhook (no requiere firma)
-    if (type === 'webhook.verify') {
+    // PassSlot puede enviar webhook.verify con o sin campo "type"
+    const isVerify = type === 'webhook.verify' || (!type && data?.token);
+    if (isVerify) {
       await logEvent(kv, webhookId, {
         time: now,
         type: 'webhook.verify',
         status: 'ok',
         message: 'Verificación de webhook exitosa',
       });
-      return new Response(JSON.stringify({ token: data.token }), {
+      // PassSlot espera el token de vuelta como texto plano
+      return new Response(data.token, {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
       });
     }
 
@@ -150,4 +153,33 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     } catch (_) {}
     return new Response('Error interno del servidor.', { status: 500 });
   }
+}
+
+// GET: Endpoint de diagnóstico para verificar que la ruta funciona
+export async function onRequestGet(context: { request: Request; env: Env }): Promise<Response> {
+  const url = new URL(context.request.url);
+  const pathParts = url.pathname.replace(/\/+$/, '').split('/');
+  const webhookId = pathParts[pathParts.length - 1];
+
+  const raw = await context.env.WEBHOOKS_KV.get(`webhook:${webhookId}`);
+  if (!raw) {
+    return new Response(JSON.stringify({ status: 'error', message: 'Webhook no encontrado', webhookId }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const config = JSON.parse(raw);
+  return new Response(JSON.stringify({
+    status: 'ok',
+    webhookId,
+    businessName: config.businessName,
+    provider: config.provider,
+    isActive: config.isActive,
+    lastEventAt: config.lastEventAt || null,
+    lastEventType: config.lastEventType || null,
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
