@@ -53,13 +53,19 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     }
 
     // Verificar firma HMAC
+    // PassSlot envía: X-Passslot-Signature (puede variar capitalización)
     const signature = request.headers.get('x-passslot-signature');
+
+    // Log de diagnóstico: registrar headers relevantes para debug
+    const allHeaders: Record<string, string> = {};
+    request.headers.forEach((v, k) => { allHeaders[k] = v; });
+
     if (!signature) {
       await logEvent(kv, webhookId, {
         time: now,
         type: type || 'unknown',
         status: 'error',
-        message: 'Sin firma HMAC',
+        message: `Sin firma HMAC. Headers recibidos: ${Object.keys(allHeaders).join(', ')}`,
       });
       return new Response('No signature provided', { status: 401 });
     }
@@ -76,7 +82,7 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
         time: now,
         type: type || 'unknown',
         status: 'error',
-        message: 'Firma HMAC inválida',
+        message: `Firma HMAC inválida. Recibido: ${signature.substring(0, 20)}... Esperado: ${digest.substring(0, 20)}...`,
       });
       return new Response('Invalid signature', { status: 403 });
     }
