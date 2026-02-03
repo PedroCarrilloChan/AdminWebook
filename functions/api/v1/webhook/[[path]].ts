@@ -4,18 +4,22 @@ interface Env {
   WEBHOOKS_KV: KVNamespace;
 }
 
+interface ExecutionContext {
+  waitUntil(promise: Promise<any>): void;
+}
+
 // Guarda un log de evento en KV (máximo 10 por webhook)
 async function logEvent(kv: KVNamespace, webhookId: string, entry: any): Promise<void> {
   const logKey = `logs:${webhookId}`;
   const raw = await kv.get(logKey);
   const logs: any[] = raw ? JSON.parse(raw) : [];
-  logs.unshift(entry); // Más reciente primero
+  logs.unshift(entry);
   if (logs.length > 10) logs.length = 10;
   await kv.put(logKey, JSON.stringify(logs));
 }
 
-export async function onRequestPost(context: { request: Request; env: Env }): Promise<Response> {
-  const { request, env } = context;
+export async function onRequestPost(context: { request: Request; env: Env; waitUntil: (promise: Promise<any>) => void }): Promise<Response> {
+  const { request, env, waitUntil } = context;
   const url = new URL(request.url);
   const pathParts = url.pathname.replace(/\/+$/, '').split('/');
   const webhookId = pathParts[pathParts.length - 1];
@@ -30,22 +34,20 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     }
 
     const config = JSON.parse(raw);
-
     const bodyText = await request.text();
     const eventData = JSON.parse(bodyText);
     const { type, data } = eventData;
 
-    // Verificación de webhook (no requiere firma)
-    // PassSlot puede enviar webhook.verify con o sin campo "type"
+    // Verificación de webhook (no requiere firma) - respuesta inmediata
     const isVerify = type === 'webhook.verify' || (!type && data?.token);
     if (isVerify) {
-      await logEvent(kv, webhookId, {
+      // Log en background
+      waitUntil(logEvent(kv, webhookId, {
         time: now,
         type: 'webhook.verify',
         status: 'ok',
         message: 'Verificación de webhook exitosa',
-      });
-      // PassSlot espera el token de vuelta como texto plano
+      }));
       return new Response(data.token, {
         status: 200,
         headers: { 'Content-Type': 'text/plain' },
@@ -53,20 +55,15 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     }
 
     // Verificar firma HMAC
-    // PassSlot envía: X-Passslot-Signature (puede variar capitalización)
     const signature = request.headers.get('x-passslot-signature');
 
-    // Log de diagnóstico: registrar headers relevantes para debug
-    const allHeaders: Record<string, string> = {};
-    request.headers.forEach((v, k) => { allHeaders[k] = v; });
-
     if (!signature) {
-      await logEvent(kv, webhookId, {
+      waitUntil(logEvent(kv, webhookId, {
         time: now,
         type: type || 'unknown',
         status: 'error',
-        message: `Sin firma HMAC. Headers recibidos: ${Object.keys(allHeaders).join(', ')}`,
-      });
+        message: 'Sin firma HMAC',
+      }));
       return new Response('No signature provided', { status: 401 });
     }
 
@@ -78,22 +75,22 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     const digest = `sha1=${Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')}`;
 
     if (signature !== digest) {
-      await logEvent(kv, webhookId, {
+      waitUntil(logEvent(kv, webhookId, {
         time: now,
         type: type || 'unknown',
         status: 'error',
-        message: `Firma HMAC inválida. Recibido: ${signature.substring(0, 20)}... Esperado: ${digest.substring(0, 20)}...`,
-      });
+        message: 'Firma HMAC inválida',
+      }));
       return new Response('Invalid signature', { status: 403 });
     }
 
     if (!config.isActive) {
-      await logEvent(kv, webhookId, {
+      waitUntil(logEvent(kv, webhookId, {
         time: now,
         type,
         status: 'blocked',
         message: 'Webhook inactivo',
-      });
+      }));
       return new Response('Este webhook está inactivo.', { status: 403 });
     }
 
@@ -106,12 +103,12 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
 
     const provider = getProvider(providerName);
     if (!provider) {
-      await logEvent(kv, webhookId, {
+      waitUntil(logEvent(kv, webhookId, {
         time: now,
         type,
         status: 'error',
         message: `Provider "${providerName}" no encontrado`,
-      });
+      }));
       return new Response(`Provider "${providerName}" no soportado.`, { status: 400 });
     }
 
@@ -121,47 +118,53 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
       receivedAt: now,
     };
 
-    const result = await provider.execute(eventData, providerConfig, metadata);
+    // OPTIMIZACIÓN: Ejecutar forwarding y logging en background
+    // Respondemos inmediatamente a SmartPasses (200 OK)
+    waitUntil((async () => {
+      try {
+        const result = await provider.execute(eventData, providerConfig, metadata);
 
-    // Log del resultado (éxito o fallo del provider)
-    await logEvent(kv, webhookId, {
-      time: now,
-      type,
-      status: result.success ? 'ok' : 'error',
-      message: result.message,
-      provider: providerName,
-      passSerial: data?.passSerialNumber || null,
-    });
+        // Log y actualización en paralelo
+        await Promise.all([
+          logEvent(kv, webhookId, {
+            time: now,
+            type,
+            status: result.success ? 'ok' : 'error',
+            message: result.message,
+            provider: providerName,
+            passSerial: data?.passSerialNumber || data?.serialNumber || null,
+          }),
+          kv.put(`webhook:${webhookId}`, JSON.stringify({
+            ...config,
+            lastEventAt: now,
+            lastEventType: type,
+            lastEventStatus: result.success ? 'ok' : 'error',
+          }))
+        ]);
+      } catch (err: any) {
+        await logEvent(kv, webhookId, {
+          time: now,
+          type,
+          status: 'error',
+          message: `Error en provider: ${err.message}`,
+          provider: providerName,
+        });
+      }
+    })());
 
-    // Actualizar último evento en el webhook config
-    const updated = { ...config, lastEventAt: now, lastEventType: type, lastEventStatus: result.success ? 'ok' : 'error' };
-    await kv.put(`webhook:${webhookId}`, JSON.stringify(updated));
-
-    if (!result.success) {
-      return new Response(result.message, { status: 422 });
-    }
-
-    return new Response(JSON.stringify(result), {
+    // Respuesta inmediata - no esperamos al provider
+    return new Response(JSON.stringify({ success: true, message: 'Evento recibido, procesando...' }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
 
   } catch (error: any) {
     console.error(`Error procesando webhook ${webhookId}:`, error.message);
-    // Intentar loguear el error
-    try {
-      await env.WEBHOOKS_KV.put(`logs:${webhookId}`, JSON.stringify([{
-        time: now,
-        type: 'system',
-        status: 'error',
-        message: `Error interno: ${error.message}`,
-      }]));
-    } catch (_) {}
     return new Response('Error interno del servidor.', { status: 500 });
   }
 }
 
-// GET: Endpoint de diagnóstico para verificar que la ruta funciona
+// GET: Endpoint de diagnóstico
 export async function onRequestGet(context: { request: Request; env: Env }): Promise<Response> {
   const url = new URL(context.request.url);
   const pathParts = url.pathname.replace(/\/+$/, '').split('/');
