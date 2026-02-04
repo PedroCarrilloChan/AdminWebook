@@ -1,5 +1,8 @@
 // Endpoint para recibir analytics de la App Android Wallet de SmartPasses
 // POST /api/v1/appwallet/analytics
+// Reenvía a providers configurados (Make, Zapier, etc.)
+
+import { getProvider } from '../../../providers/index';
 
 interface Env {
   WEBHOOKS_KV: KVNamespace;
@@ -12,17 +15,16 @@ interface AnalyticsEvent {
   metadata?: Record<string, any>;
 }
 
-interface AnalyticsStats {
-  totalEvents: number;
-  uniqueDevices: string[];
-  eventCounts: Record<string, number>;
-  lastUpdated: string;
+interface AppWalletConfig {
+  isActive: boolean;
+  provider: string;
+  providerConfig: Record<string, any>;
+  businessName?: string;
 }
 
 export async function onRequestPost(context: { request: Request; env: Env; waitUntil: (p: Promise<any>) => void }): Promise<Response> {
   const { request, env, waitUntil } = context;
 
-  // Solo permitimos POST
   if (request.method !== 'POST') {
     return new Response('Expected POST', { status: 405 });
   }
@@ -30,7 +32,6 @@ export async function onRequestPost(context: { request: Request; env: Env; waitU
   try {
     const data: AnalyticsEvent = await request.json();
 
-    // Validar campos requeridos
     if (!data.eventName || !data.deviceId) {
       return new Response(JSON.stringify({
         status: 'error',
@@ -44,69 +45,53 @@ export async function onRequestPost(context: { request: Request; env: Env; waitU
     const now = new Date().toISOString();
     const kv = env.WEBHOOKS_KV;
 
-    // Procesar en background para respuesta rápida
+    // Respuesta inmediata, procesamiento en background
     waitUntil((async () => {
-      // 1. Guardar evento en historial del dispositivo (últimos 50)
-      const deviceKey = `appwallet:device:${data.deviceId}`;
-      const deviceRaw = await kv.get(deviceKey);
-      const deviceEvents: any[] = deviceRaw ? JSON.parse(deviceRaw) : [];
+      try {
+        // 1. Guardar en estadísticas locales
+        await saveAnalytics(kv, data, now);
 
-      deviceEvents.unshift({
-        eventName: data.eventName,
-        timestamp: data.timestamp || now,
-        metadata: data.metadata || {},
-        receivedAt: now,
-      });
+        // 2. Reenviar a provider configurado
+        const configRaw = await kv.get('appwallet:config');
+        if (configRaw) {
+          const config: AppWalletConfig = JSON.parse(configRaw);
 
-      if (deviceEvents.length > 50) deviceEvents.length = 50;
-      await kv.put(deviceKey, JSON.stringify(deviceEvents));
+          if (config.isActive && config.provider) {
+            const provider = getProvider(config.provider);
 
-      // 2. Actualizar estadísticas globales
-      const statsKey = 'appwallet:stats';
-      const statsRaw = await kv.get(statsKey);
-      const stats: AnalyticsStats = statsRaw ? JSON.parse(statsRaw) : {
-        totalEvents: 0,
-        uniqueDevices: [],
-        eventCounts: {},
-        lastUpdated: now,
-      };
+            if (provider) {
+              // Crear payload enriquecido para el provider
+              const eventData = {
+                type: `appwallet.${data.eventName}`,
+                data: {
+                  eventName: data.eventName,
+                  deviceId: data.deviceId,
+                  timestamp: data.timestamp || now,
+                  metadata: data.metadata || {},
+                }
+              };
 
-      stats.totalEvents++;
-      stats.eventCounts[data.eventName] = (stats.eventCounts[data.eventName] || 0) + 1;
+              const metadata = {
+                webhookId: 'appwallet',
+                businessName: config.businessName || 'AppWallet Analytics',
+                receivedAt: now,
+              };
 
-      if (!stats.uniqueDevices.includes(data.deviceId)) {
-        stats.uniqueDevices.push(data.deviceId);
-        // Limitar a últimos 1000 dispositivos únicos
-        if (stats.uniqueDevices.length > 1000) {
-          stats.uniqueDevices = stats.uniqueDevices.slice(-1000);
+              const result = await provider.execute(eventData, config.providerConfig, metadata);
+
+              // Log del resultado
+              await logForwardResult(kv, data.eventName, result, config.provider, now);
+            }
+          }
         }
+      } catch (err: any) {
+        console.error('Error procesando analytics:', err.message);
       }
-
-      stats.lastUpdated = now;
-      await kv.put(statsKey, JSON.stringify(stats));
-
-      // 3. Guardar en lista global de eventos recientes (últimos 100)
-      const recentKey = 'appwallet:recent';
-      const recentRaw = await kv.get(recentKey);
-      const recentEvents: any[] = recentRaw ? JSON.parse(recentRaw) : [];
-
-      recentEvents.unshift({
-        eventName: data.eventName,
-        deviceId: data.deviceId.substring(0, 8) + '...', // Anonimizar parcialmente
-        timestamp: data.timestamp || now,
-        receivedAt: now,
-      });
-
-      if (recentEvents.length > 100) recentEvents.length = 100;
-      await kv.put(recentKey, JSON.stringify(recentEvents));
-
     })());
 
-    // Respuesta inmediata
     return new Response(JSON.stringify({
       status: 'success',
       received: data.eventName,
-      deviceId: data.deviceId.substring(0, 8) + '...',
     }), {
       status: 200,
       headers: {
@@ -126,26 +111,107 @@ export async function onRequestPost(context: { request: Request; env: Env; waitU
   }
 }
 
-// GET: Ver estadísticas (para debug/admin)
+// Guardar analytics en KV
+async function saveAnalytics(kv: KVNamespace, data: AnalyticsEvent, now: string): Promise<void> {
+  // Eventos por dispositivo (últimos 50)
+  const deviceKey = `appwallet:device:${data.deviceId}`;
+  const deviceRaw = await kv.get(deviceKey);
+  const deviceEvents: any[] = deviceRaw ? JSON.parse(deviceRaw) : [];
+
+  deviceEvents.unshift({
+    eventName: data.eventName,
+    timestamp: data.timestamp || now,
+    metadata: data.metadata || {},
+    receivedAt: now,
+  });
+
+  if (deviceEvents.length > 50) deviceEvents.length = 50;
+  await kv.put(deviceKey, JSON.stringify(deviceEvents));
+
+  // Estadísticas globales
+  const statsKey = 'appwallet:stats';
+  const statsRaw = await kv.get(statsKey);
+  const stats = statsRaw ? JSON.parse(statsRaw) : {
+    totalEvents: 0,
+    uniqueDevices: [],
+    eventCounts: {},
+    lastUpdated: now,
+  };
+
+  stats.totalEvents++;
+  stats.eventCounts[data.eventName] = (stats.eventCounts[data.eventName] || 0) + 1;
+
+  if (!stats.uniqueDevices.includes(data.deviceId)) {
+    stats.uniqueDevices.push(data.deviceId);
+    if (stats.uniqueDevices.length > 1000) {
+      stats.uniqueDevices = stats.uniqueDevices.slice(-1000);
+    }
+  }
+
+  stats.lastUpdated = now;
+  await kv.put(statsKey, JSON.stringify(stats));
+
+  // Eventos recientes (últimos 100)
+  const recentKey = 'appwallet:recent';
+  const recentRaw = await kv.get(recentKey);
+  const recentEvents: any[] = recentRaw ? JSON.parse(recentRaw) : [];
+
+  recentEvents.unshift({
+    eventName: data.eventName,
+    deviceId: data.deviceId.substring(0, 8) + '...',
+    timestamp: data.timestamp || now,
+    receivedAt: now,
+  });
+
+  if (recentEvents.length > 100) recentEvents.length = 100;
+  await kv.put(recentKey, JSON.stringify(recentEvents));
+}
+
+// Log de resultado del forward
+async function logForwardResult(kv: KVNamespace, eventName: string, result: any, provider: string, now: string): Promise<void> {
+  const logKey = 'appwallet:logs';
+  const logRaw = await kv.get(logKey);
+  const logs: any[] = logRaw ? JSON.parse(logRaw) : [];
+
+  logs.unshift({
+    time: now,
+    event: eventName,
+    provider,
+    status: result.success ? 'ok' : 'error',
+    message: result.message,
+  });
+
+  if (logs.length > 50) logs.length = 50;
+  await kv.put(logKey, JSON.stringify(logs));
+}
+
+// GET: Ver estadísticas
 export async function onRequestGet(context: { request: Request; env: Env }): Promise<Response> {
   const kv = context.env.WEBHOOKS_KV;
 
-  const [statsRaw, recentRaw] = await Promise.all([
+  const [statsRaw, recentRaw, configRaw] = await Promise.all([
     kv.get('appwallet:stats'),
     kv.get('appwallet:recent'),
+    kv.get('appwallet:config'),
   ]);
 
   const stats = statsRaw ? JSON.parse(statsRaw) : { totalEvents: 0, uniqueDevices: [], eventCounts: {} };
   const recentEvents = recentRaw ? JSON.parse(recentRaw) : [];
+  const config = configRaw ? JSON.parse(configRaw) : null;
 
   return new Response(JSON.stringify({
+    config: config ? {
+      isActive: config.isActive,
+      provider: config.provider,
+      businessName: config.businessName,
+    } : null,
     stats: {
       totalEvents: stats.totalEvents,
       uniqueDevicesCount: stats.uniqueDevices?.length || 0,
       eventCounts: stats.eventCounts,
       lastUpdated: stats.lastUpdated,
     },
-    recentEvents: recentEvents.slice(0, 20), // Solo últimos 20 para el resumen
+    recentEvents: recentEvents.slice(0, 20),
   }), {
     status: 200,
     headers: {
