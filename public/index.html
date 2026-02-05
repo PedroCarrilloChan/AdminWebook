@@ -99,9 +99,23 @@
                 <h1 class="text-4xl md:text-5xl font-bold mb-4 leading-tight">
                     Analytics <span class="gradient-text">AppWallet</span>
                 </h1>
-                <p class="text-lg text-gray-300 mb-6 max-w-2xl mx-auto">
+                <p class="text-lg text-gray-300 mb-4 max-w-2xl mx-auto">
                     Recibe eventos desde la app Android y reenvíalos a tu plataforma favorita.
                 </p>
+
+                <!-- URL Principal para la App -->
+                <div class="max-w-2xl mx-auto mb-6">
+                    <div class="glass-card rounded-xl p-4">
+                        <p class="text-xs text-gray-400 mb-2">📱 URL para configurar en tu App Android:</p>
+                        <div class="flex items-center justify-center gap-2">
+                            <code id="mainAppWalletUrl" class="text-sm md:text-base text-green-400 bg-black/30 px-4 py-2 rounded-lg font-mono break-all"></code>
+                            <button onclick="copyToClipboard(document.getElementById('mainAppWalletUrl').textContent, this)" class="btn-glass text-xs px-3 py-2 rounded-lg whitespace-nowrap">
+                                📋 Copiar
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">Esta URL siempre está activa. Los eventos se guardan automáticamente.</p>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -829,7 +843,9 @@
         const awSubmitButton = document.getElementById('awSubmitButton');
 
         // Set webhook URL
-        document.getElementById('awWebhookUrl').value = `${window.location.origin}/api/v1/appwallet/analytics`;
+        const appWalletUrl = `${window.location.origin}/api/v1/appwallet/analytics`;
+        document.getElementById('awWebhookUrl').value = appWalletUrl;
+        document.getElementById('mainAppWalletUrl').textContent = appWalletUrl;
 
         // Render provider grid for AppWallet
         function renderAwProviderGrid() {
