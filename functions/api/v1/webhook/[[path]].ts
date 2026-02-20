@@ -67,14 +67,29 @@ export async function onRequestPost(context: { request: Request; env: Env; waitU
       return new Response('No signature provided', { status: 401 });
     }
 
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      'raw', encoder.encode(config.secretKey), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
-    );
-    const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(bodyText));
-    const digest = `sha1=${Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')}`;
+    // La firma entrante debe tener el formato "sha1=<hex>"
+    if (!signature.startsWith('sha1=')) {
+      waitUntil(logEvent(kv, webhookId, {
+        time: now,
+        type: type || 'unknown',
+        status: 'error',
+        message: 'Formato de firma HMAC inválido',
+      }));
+      return new Response('Invalid signature format', { status: 403 });
+    }
 
-    if (signature !== digest) {
+    const encoder = new TextEncoder();
+    // Convertir la firma hex recibida a bytes para usar crypto.subtle.verify (comparación timing-safe)
+    const sigHex = signature.slice(5); // eliminar prefijo "sha1="
+    const sigBytes = new Uint8Array((sigHex.match(/.{1,2}/g) ?? []).map(b => parseInt(b, 16)));
+
+    const key = await crypto.subtle.importKey(
+      'raw', encoder.encode(config.secretKey), { name: 'HMAC', hash: 'SHA-1' }, false, ['verify']
+    );
+    // crypto.subtle.verify usa comparación en tiempo constante (timing-safe)
+    const isValid = await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(bodyText));
+
+    if (!isValid) {
       waitUntil(logEvent(kv, webhookId, {
         time: now,
         type: type || 'unknown',
